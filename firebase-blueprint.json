@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "A classified house, shop, girvi, or sale listing in Neemuch",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Title or headline of the listing"
+        },
+        "listingCategory": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Category: मकान किराए हेतु, गिरवी मकान, दुकान, मकान बेचना है"
+        },
+        "colony": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Colony or locality in Neemuch"
+        },
+        "houseNumber": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "House or shop identifier"
+        },
+        "config": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Configuration (1R, 1RK, 1BHK, 2BHK, 3BHK, 4BHK, दुकान, कमर्शियल)"
+        },
+        "floor": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Floor or size level"
+        },
+        "rent": {
+          "type": "number",
+          "description": "Price/Rent/Girvi amount in INR"
+        },
+        "priceType": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Price label (प्रति माह, गिरवी राशि, बिक्री मूल्य)"
+        },
+        "contactNumber": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Contact phone number"
+        },
+        "whatsappNumber": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "WhatsApp contact number with country code"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Detailed description and highlights"
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 500000,
+          "description": "Image data URI or image URL"
+        },
+        "aiDetected": {
+          "type": "boolean",
+          "description": "Flag indicating if extracted using AI bulk upload"
+        },
+        "available": {
+          "type": "boolean",
+          "description": "Availability status of the property"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp ISO string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp ISO string"
+        }
+      },
+      "required": ["title", "colony", "config", "contactNumber"]
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Public listings of properties, shops, girvi, and sale items in Neemuch"
+    }
+  }
+}

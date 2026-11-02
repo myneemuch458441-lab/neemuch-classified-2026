@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>नीमच क्लासिफाइड - Neemuch Classified</title>
+    <meta name="description" content="नीमच शहर की प्रमुख प्रॉपर्टी एवं रेंटल क्लासिफाइड डायरेक्टरी - मकान खोजें, लिस्ट करें और AI बल्क अपलोड से प्रबंधित करें।" />
+    <meta property="og:title" content="नीमच क्लासिफाइड - Neemuch Classified" />
+    <meta property="og:description" content="नीमच शहर की प्रमुख प्रॉपर्टी एवं रेंटल क्लासिफाइड डायरेक्टरी - मकान खोजें, लिस्ट करें और AI बल्क अपलोड से प्रबंधित करें।" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Rozha+One&display=swap" rel="stylesheet">
+    <script>
+      // Ignore WebSocket / HMR connection errors in preview iframe per environment constraints
+      window.addEventListener('unhandledrejection', function (e) {
+        if (
+          e.reason &&
+          (String(e.reason).includes('WebSocket') ||
+           String(e.reason.message || '').includes('WebSocket') ||
+           String(e.reason.stack || '').includes('@vite/client') ||
+           String(e.reason.stack || '').includes('createWebSocketModuleRunnerTransport'))
+        ) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+      window.addEventListener('error', function (e) {
+        if (
+          (e.message && e.message.includes('WebSocket')) ||
+          (e.filename && e.filename.includes('@vite/client'))
+        ) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

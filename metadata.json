@@ -1,0 +1,6 @@
+{
+  "name": "नीमच क्लासिफाइड - Neemuch Classified",
+  "description": "नीमच शहर की प्रमुख प्रॉपर्टी एवं रेंटल क्लासिफाइड डायरेक्टरी - मकान खोजें, लिस्ट करें और AI बल्क अपलोड से प्रबंधित करें।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

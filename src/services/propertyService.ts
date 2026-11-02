@@ -1,0 +1,316 @@
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  writeBatch,
+  getDocs
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, testConnection } from '../lib/firebase';
+import { Property, ListingCategory } from '../types/property';
+import { INITIAL_NEEMUCH_PROPERTIES } from '../data/seedProperties';
+
+const COLLECTION_NAME = 'properties';
+
+export function subscribeToProperties(
+  onData: (properties: Property[]) => void,
+  onError?: (error: unknown) => void
+) {
+  // Test connection once silently
+  testConnection();
+
+  return onSnapshot(
+    collection(db, COLLECTION_NAME),
+    async (snapshot) => {
+      // If collection is empty, only seed if admin hasn't explicitly wiped it
+      if (snapshot.empty) {
+        const hasExplicitlyCleared = typeof window !== 'undefined' && localStorage.getItem('neemuch_cleared_by_admin');
+        if (!hasExplicitlyCleared) {
+          console.log('Properties collection empty. Seeding initial Neemuch listings...');
+          try {
+            const batch = writeBatch(db);
+            for (const item of INITIAL_NEEMUCH_PROPERTIES) {
+              const docRef = doc(collection(db, COLLECTION_NAME));
+              batch.set(docRef, { ...item, imageUrl: '', rent: 0 }); // rent 0 by default
+            }
+            await batch.commit();
+            return;
+          } catch (e) {
+            console.warn('Auto-seed batch error:', e);
+          }
+        }
+      }
+
+      // Check if any existing documents have any saved imageUrl and wipe them completely
+      // as photos are only for data extraction and should NOT be stored or displayed on screen
+      const docsWithPhotos = snapshot.docs.filter((d) => {
+        const url = d.data().imageUrl;
+        return typeof url === 'string' && url.length > 0;
+      });
+
+      if (docsWithPhotos.length > 0) {
+        (async () => {
+          try {
+            const batch = writeBatch(db);
+            for (const d of docsWithPhotos) {
+              batch.update(d.ref, { imageUrl: '' });
+            }
+            await batch.commit();
+            console.log(`Cleaned image URLs from ${docsWithPhotos.length} listings in Firestore`);
+          } catch (err) {
+            console.warn('Could not clean image URLs from batch:', err);
+          }
+        })();
+      }
+
+      const items: Property[] = snapshot.docs.map((d) => {
+        const data = d.data();
+
+        // Auto-detect or default category
+        let category: ListingCategory = data.listingCategory || 'मकान किराए हेतु';
+        const titleLower = (data.title || '').toLowerCase();
+        if (titleLower.includes('गिरवी')) category = 'गिरवी मकान';
+        else if (titleLower.includes('दुकान') || titleLower.includes('shop')) category = 'दुकान';
+        else if (titleLower.includes('बेचना') || titleLower.includes('बिकाऊ') || titleLower.includes('sale')) category = 'मकान बेचना है';
+
+        let defaultPriceType = data.priceType;
+        if (!defaultPriceType) {
+          if (category === 'गिरवी मकान') defaultPriceType = 'गिरवी राशि';
+          else if (category === 'मकान बेचना है') defaultPriceType = 'बिक्री मूल्य';
+          else defaultPriceType = 'प्रति माह';
+        }
+
+        const rentVal = Number(data.rent) || 0;
+
+        return {
+          id: d.id,
+          title: data.title || '',
+          listingCategory: category,
+          colony: data.colony || '',
+          houseNumber: data.houseNumber || '',
+          config: data.config || '2BHK',
+          floor: data.floor || 'ग्राउंड फ्लोर',
+          rent: rentVal,
+          priceType: defaultPriceType,
+          contactNumber: data.contactNumber || '+91-7999646575',
+          whatsappNumber: data.whatsappNumber || '917999646575',
+          description: data.description || '',
+          imageUrl: '', // Always empty - no photos on screen
+          aiDetected: Boolean(data.aiDetected),
+          aiConfidence: data.aiConfidence ? Number(data.aiConfidence) : undefined,
+          aiTags: Array.isArray(data.aiTags) ? data.aiTags : [],
+          features: Array.isArray(data.features) ? data.features : [],
+          landmark: data.landmark || '',
+          available: data.available !== false && String(data.available).toLowerCase() !== 'false' && data.status !== 'booked',
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        };
+      });
+
+      // Sort by creation time desc
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onData(items);
+    },
+    (error) => {
+      console.error('Subscription error:', error);
+      if (onError) onError(error);
+      handleFirestoreError(error, OperationType.GET, COLLECTION_NAME);
+    }
+  );
+}
+
+export async function addProperty(propertyData: Omit<Property, 'id'>): Promise<string> {
+  try {
+    const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+      ...propertyData,
+      imageUrl: '', // Enforce no photo stored
+      createdAt: propertyData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return docRef.id;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, COLLECTION_NAME);
+    throw error;
+  }
+}
+
+export async function updateProperty(id: string, updates: Partial<Property>): Promise<void> {
+  const docPath = `${COLLECTION_NAME}/${id}`;
+  try {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await updateDoc(docRef, {
+      ...updates,
+      imageUrl: '', // Enforce no photo stored
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, docPath);
+    throw error;
+  }
+}
+
+export async function deleteProperty(id: string): Promise<void> {
+  const docPath = `${COLLECTION_NAME}/${id}`;
+  try {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, docPath);
+    throw error;
+  }
+}
+
+export async function bulkAddProperties(
+  properties: Omit<Property, 'id'>[],
+  onProgress?: (completed: number, total: number) => void
+): Promise<number> {
+  const CHUNK_SIZE = 50;
+  let addedCount = 0;
+
+  for (let i = 0; i < properties.length; i += CHUNK_SIZE) {
+    const chunk = properties.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    for (const item of chunk) {
+      const docRef = doc(collection(db, COLLECTION_NAME));
+      batch.set(docRef, {
+        ...item,
+        imageUrl: '', // No photo saved to DB
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    try {
+      await batch.commit();
+      addedCount += chunk.length;
+      if (onProgress) {
+        onProgress(addedCount, properties.length);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, COLLECTION_NAME);
+      throw error;
+    }
+  }
+
+  return addedCount;
+}
+
+export async function clearAllPhotosFromFirestore(): Promise<number> {
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const batch = writeBatch(db);
+    let count = 0;
+
+    for (const d of snapshot.docs) {
+      const currentUrl = d.data().imageUrl || '';
+      if (currentUrl.length > 0) {
+        batch.update(d.ref, { imageUrl: '' });
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      await batch.commit();
+    }
+    return count;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, COLLECTION_NAME);
+    throw error;
+  }
+}
+
+/**
+ * MASTER RESET 1: Completely wipe all documents from Firestore properties collection
+ */
+export async function wipeAllPropertiesFromFirestore(): Promise<number> {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('neemuch_cleared_by_admin', 'true');
+    }
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const CHUNK_SIZE = 400;
+    let deletedCount = 0;
+
+    for (let i = 0; i < snapshot.docs.length; i += CHUNK_SIZE) {
+      const chunk = snapshot.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const d of chunk) {
+        batch.delete(d.ref);
+      }
+      await batch.commit();
+      deletedCount += chunk.length;
+    }
+
+    return deletedCount;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, COLLECTION_NAME);
+    throw error;
+  }
+}
+
+/**
+ * MASTER RESET 2: Reset rent on ALL existing listings in Firestore to 0 ('किराया उपलब्ध नहीं')
+ * Preserves the listing, colony, house number, and contact info while eliminating unwanted rent numbers.
+ */
+export async function resetAllRentsInFirestore(): Promise<number> {
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const CHUNK_SIZE = 400;
+    let updatedCount = 0;
+
+    for (let i = 0; i < snapshot.docs.length; i += CHUNK_SIZE) {
+      const chunk = snapshot.docs.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const d of chunk) {
+        batch.update(d.ref, {
+          rent: 0,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      await batch.commit();
+      updatedCount += chunk.length;
+    }
+
+    return updatedCount;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, COLLECTION_NAME);
+    throw error;
+  }
+}
+
+/**
+ * MASTER RESET 3: Wipe all and restore clean seed listings (with rent: 0 by default)
+ */
+export async function restoreDefaultSeedInFirestore(): Promise<number> {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('neemuch_cleared_by_admin');
+    }
+    const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+    const deleteBatch = writeBatch(db);
+    for (const d of snapshot.docs) {
+      deleteBatch.delete(d.ref);
+    }
+    await deleteBatch.commit();
+
+    const insertBatch = writeBatch(db);
+    for (const item of INITIAL_NEEMUCH_PROPERTIES) {
+      const docRef = doc(collection(db, COLLECTION_NAME));
+      insertBatch.set(docRef, {
+        ...item,
+        imageUrl: '',
+        rent: 0, // Zero rent by default so 'किराया उपलब्ध नहीं' is displayed
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    await insertBatch.commit();
+    return INITIAL_NEEMUCH_PROPERTIES.length;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, COLLECTION_NAME);
+    throw error;
+  }
+}
