@@ -23,5 +23,10 @@ service cloud.firestore {
       allow update: if isValidProperty(request.resource.data);
       allow delete: if true;
     }
+
+    match /siteStats/{statId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

@@ -20,10 +20,13 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Neemuch colonies reference
 const NEEMUCH_COLONIES = [
+  'शक्ति नगर (Shakti Nagar)',
+  'शक्ति नगर विस्तार (Shakti Nagar Vistar)',
   'विकास नगर (Vikas Nagar)',
   'जैन कालोनी (Jain Colony)',
   'टैगोर नगर (Tagore Nagar)',
   'स्कीम नंबर 36 (Scheme 36)',
+  'स्कीम नंबर 9 (Scheme 9)',
   'बघाना मुख्य क्षेत्र (Baghana)',
   'कैंट क्षेत्र (Neemuch Cantt)',
   'गोमाबाई रोड (Gomabai Road)',
@@ -33,7 +36,11 @@ const NEEMUCH_COLONIES = [
   'हुडको कालोनी (HUDCO Colony)',
   'अंबेडकर कालोनी (Ambedkar Colony)',
   'गांधी नगर (Gandhi Nagar)',
-  'ज्ञान मंदिर रोड (Gyan Mandir Road)'
+  'ज्ञान मंदिर रोड (Gyan Mandir Road)',
+  'राम नगर (Ram Nagar)',
+  'इंदिरा नगर (Indira Nagar)',
+  'नीमच सिटी (Neemuch City)',
+  'कनावटी रोड (Kanawati Road)'
 ];
 
 // Initialize GoogleGenAI SDK per system guidelines
@@ -48,6 +55,59 @@ const ai = apiKey
       },
     })
   : null;
+
+// Resilient Gemini content generator with automatic retry and model fallback
+async function generateContentWithFallback(
+  aiClient: GoogleGenAI,
+  contents: any,
+  config?: any
+): Promise<string> {
+  // Allowed active models per SKILL.md:
+  // Primary: gemini-3.8-flash, Fallbacks: gemini-flash-latest, gemini-3.1-flash-lite
+  const candidateModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const payload: any = {
+          model,
+          contents,
+        };
+        if (config) {
+          payload.config = config;
+        }
+
+        const response = await aiClient.models.generateContent(payload);
+        const text = response.text?.trim();
+        if (text) {
+          return text;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || err || '');
+        const isSpikeOrRateLimit =
+          errMsg.includes('503') ||
+          errMsg.includes('high demand') ||
+          errMsg.includes('UNAVAILABLE') ||
+          errMsg.includes('429') ||
+          errMsg.includes('RESOURCE_EXHAUSTED');
+
+        console.warn(`[Gemini OCR] Model ${model} attempt ${attempt} warning: ${errMsg.slice(0, 160)}`);
+
+        if (isSpikeOrRateLimit && attempt < 2) {
+          // Pause 800ms before second attempt
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          continue;
+        }
+        // Move to fallback model
+        break;
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 // POST /api/extract-property: Server-side vision OCR and data extraction
 app.post('/api/extract-property', async (req, res) => {
@@ -102,9 +162,9 @@ Return ONLY valid JSON matching this schema:
   "confidence": number
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [
+        const responseText = await generateContentWithFallback(
+          ai,
+          [
             {
               role: 'user',
               parts: [
@@ -118,12 +178,11 @@ Return ONLY valid JSON matching this schema:
               ],
             },
           ],
-          config: {
+          {
             responseMimeType: 'application/json',
-          },
-        });
+          }
+        );
 
-        const responseText = response.text?.trim() || '';
         if (responseText) {
           const parsed = JSON.parse(responseText);
 
@@ -261,15 +320,97 @@ Return ONLY valid JSON matching this schema:
   }
 });
 
+// POST /api/ocr-photo-to-text: Dedicated Admin Newspaper & Photo OCR Text Converter
+app.post('/api/ocr-photo-to-text', async (req, res) => {
+  try {
+    const { imageBase64, mimeType } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ success: false, error: 'No image provided' });
+    }
+
+    const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+    const finalMime = mimeType || 'image/jpeg';
+
+    if (ai) {
+      try {
+        const prompt = `You are an expert OCR and real estate advertisement extractor for Hindi/English newspaper classifieds (दैनिक भास्कर, पत्रिका, नई दुनिया, आदि), brochures, WhatsApp paper clippings, and signboard photos.
+Examine this photograph or newspaper cutting very carefully.
+Extract all visible text in Hindi and English accurately.
+
+Output a clean, neatly formatted copy-paste ready advertisement in Hindi:
+---
+[विज्ञापन श्रेणी / उद्देश्य: उदा. मकान बेचना है / मकान किराए से देना है / मकान किराए से चाहिए / दुकान / गिरवी]
+विवरण :- (कमरे जैसे 1BHK/2BHK, फ्लोर, साइज sqft या अन्य विवरण)
+लोकेशन / एड्रेस :- (कॉलोनी, मोहल्ला, चौराहा या लैंडमार्क)
+सम्पर्क :- (दिए गए सभी मोबाइल व फोन नंबर)
+अन्य सुविधाएं :- (जैसे पानी, बिजली, पार्किंग, सीसीटीवी आदि यदि लिखे हैं)
+किराया / मूल्य :- (यदि लिखा है, अन्यथा 'बातचीत अनुसार')
+---
+
+Only output the formatted Hindi text directly so that the admin can click copy and paste it into their classifieds directory immediately. No markdown commentary outside the ad.`;
+
+        const extractedText = await generateContentWithFallback(
+          ai,
+          [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    data: cleanBase64,
+                    mimeType: finalMime,
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        if (extractedText) {
+          return res.json({
+            success: true,
+            extractedText: extractedText
+          });
+        }
+      } catch (geminiError: any) {
+        console.warn('Gemini OCR vision error:', geminiError);
+        let userMessage = 'फोटो से टेक्स्ट निकालने में समस्या आई। कृपया पुनः प्रयास करें।';
+        const rawMsg = String(geminiError?.message || geminiError || '');
+        if (rawMsg.includes('503') || rawMsg.includes('high demand') || rawMsg.includes('UNAVAILABLE')) {
+          userMessage = 'सर्वर पर अस्थाई रूप से अधिक लोड है (503 High Demand)। कृपया 2 सेकंड बाद "पुनः प्रयास करें" दबाएं।';
+        } else if (rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED')) {
+          userMessage = 'अनुरोध सीमा पूरी हो गई है। कृपया कुछ क्षण बाद पुनः प्रयास करें।';
+        }
+
+        return res.status(500).json({ 
+          success: false, 
+          error: userMessage,
+          rawError: rawMsg
+        });
+      }
+    }
+
+    return res.status(500).json({ success: false, error: 'Gemini API not configured' });
+  } catch (error: any) {
+    console.error('OCR photo to text error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+  }
+});
+
+// Health check endpoint
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Dev vs Prod Vite handling
 if (process.env.NODE_ENV !== 'production') {
   const { createServer: createViteServer } = await import('vite');
+  const isHmrDisabled = process.env.DISABLE_HMR === 'true';
   const vite = await createViteServer({
     server: {
       middlewareMode: true,
-      hmr: {
-        server: httpServer,
-      },
+      hmr: isHmrDisabled ? false : undefined,
     },
     appType: 'spa',
   });
@@ -280,6 +421,23 @@ if (process.env.NODE_ENV !== 'production') {
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
   });
 }
+
+httpServer.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${port} is already in use.`);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+const gracefulShutdown = () => {
+  httpServer.close(() => {
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
 
 httpServer.listen(port, '0.0.0.0', () => {
   console.log(`Neemuch Classified server listening on port ${port}`);

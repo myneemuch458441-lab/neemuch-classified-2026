@@ -64,6 +64,13 @@
           "maxLength": 500000,
           "description": "Image data URI or image URL"
         },
+        "photos": {
+          "type": "array",
+          "description": "Optional array of up to 10 compressed house photos (Base64 data URIs)",
+          "items": {
+            "type": "string"
+          }
+        },
         "aiDetected": {
           "type": "boolean",
           "description": "Flag indicating if extracted using AI bulk upload"
@@ -79,15 +86,47 @@
         "updatedAt": {
           "type": "string",
           "description": "Last update timestamp ISO string"
+        },
+        "posterAd": {
+          "type": "object",
+          "description": "Public 2:1 landscape banner shop or business promotional poster advertisement attached under this listing"
         }
       },
       "required": ["title", "colony", "config", "contactNumber"]
+    },
+    "SiteStats": {
+      "title": "SiteStats",
+      "description": "Website visitor counts, daily auto-increments and analytics",
+      "type": "object",
+      "properties": {
+        "totalVisitors": {
+          "type": "number",
+          "description": "Total visitors count with daily auto increment"
+        },
+        "todayVisitors": {
+          "type": "number",
+          "description": "Today visitor count"
+        },
+        "activeNow": {
+          "type": "number",
+          "description": "Estimated live active visitors"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Last update ISO timestamp"
+        }
+      },
+      "required": ["totalVisitors"]
     }
   },
   "firestore": {
     "/properties/{propertyId}": {
       "schema": "Property",
       "description": "Public listings of properties, shops, girvi, and sale items in Neemuch"
+    },
+    "/siteStats/{statId}": {
+      "schema": "SiteStats",
+      "description": "Real-time site visitor metrics"
     }
   }
 }
