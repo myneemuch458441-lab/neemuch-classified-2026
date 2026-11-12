@@ -9,7 +9,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testConnection } from '../lib/firebase';
-import { Property, ListingCategory } from '../types/property';
+import { Property, ListingCategory, PosterAd } from '../types/property';
 import { INITIAL_NEEMUCH_PROPERTIES } from '../data/seedProperties';
 
 const COLLECTION_NAME = 'properties';
@@ -103,6 +103,8 @@ export function subscribeToProperties(
           aiTags: Array.isArray(data.aiTags) ? data.aiTags : [],
           features: Array.isArray(data.features) ? data.features : [],
           landmark: data.landmark || '',
+          photos: Array.isArray(data.photos) ? data.photos : [],
+          posterAd: data.posterAd || undefined,
           available: data.available !== false && String(data.available).toLowerCase() !== 'false' && data.status !== 'booked',
           createdAt: data.createdAt || new Date().toISOString(),
           updatedAt: data.updatedAt || new Date().toISOString(),
@@ -125,7 +127,8 @@ export async function addProperty(propertyData: Omit<Property, 'id'>): Promise<s
   try {
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...propertyData,
-      imageUrl: '', // Enforce no photo stored
+      imageUrl: '', // Enforce no legacy photo stored
+      photos: Array.isArray(propertyData.photos) ? propertyData.photos : [],
       createdAt: propertyData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -140,11 +143,58 @@ export async function updateProperty(id: string, updates: Partial<Property>): Pr
   const docPath = `${COLLECTION_NAME}/${id}`;
   try {
     const docRef = doc(db, COLLECTION_NAME, id);
-    await updateDoc(docRef, {
+    const sanitizedUpdates: Record<string, any> = {
       ...updates,
-      imageUrl: '', // Enforce no photo stored
+      imageUrl: '', // Enforce no legacy photo stored
+      updatedAt: new Date().toISOString(),
+    };
+    if (updates.photos !== undefined) {
+      sanitizedUpdates.photos = Array.isArray(updates.photos) ? updates.photos : [];
+    }
+    await updateDoc(docRef, sanitizedUpdates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, docPath);
+    throw error;
+  }
+}
+
+export async function updatePropertyPhotos(id: string, photos: string[]): Promise<void> {
+  const docPath = `${COLLECTION_NAME}/${id}`;
+  try {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await updateDoc(docRef, {
+      photos: Array.isArray(photos) ? photos : [],
       updatedAt: new Date().toISOString(),
     });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, docPath);
+    throw error;
+  }
+}
+
+export async function updatePropertyPosterAd(id: string, posterAd: PosterAd | null): Promise<void> {
+  const docPath = `${COLLECTION_NAME}/${id}`;
+  try {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    if (posterAd) {
+      const cleanPoster: Record<string, any> = {
+        imageUrl: posterAd.imageUrl,
+        updatedAt: posterAd.updatedAt || new Date().toISOString(),
+      };
+      if (posterAd.shopName) cleanPoster.shopName = posterAd.shopName;
+      if (posterAd.contactNumber) cleanPoster.contactNumber = posterAd.contactNumber;
+      if (posterAd.tagline) cleanPoster.tagline = posterAd.tagline;
+
+      await updateDoc(docRef, {
+        posterAd: cleanPoster,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      await updateDoc(docRef, {
+        posterAd: null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, docPath);
     throw error;
@@ -160,42 +210,6 @@ export async function deleteProperty(id: string): Promise<void> {
     handleFirestoreError(error, OperationType.DELETE, docPath);
     throw error;
   }
-}
-
-export async function bulkAddProperties(
-  properties: Omit<Property, 'id'>[],
-  onProgress?: (completed: number, total: number) => void
-): Promise<number> {
-  const CHUNK_SIZE = 50;
-  let addedCount = 0;
-
-  for (let i = 0; i < properties.length; i += CHUNK_SIZE) {
-    const chunk = properties.slice(i, i + CHUNK_SIZE);
-    const batch = writeBatch(db);
-
-    for (const item of chunk) {
-      const docRef = doc(collection(db, COLLECTION_NAME));
-      batch.set(docRef, {
-        ...item,
-        imageUrl: '', // No photo saved to DB
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    try {
-      await batch.commit();
-      addedCount += chunk.length;
-      if (onProgress) {
-        onProgress(addedCount, properties.length);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, COLLECTION_NAME);
-      throw error;
-    }
-  }
-
-  return addedCount;
 }
 
 export async function clearAllPhotosFromFirestore(): Promise<number> {

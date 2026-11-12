@@ -1,22 +1,26 @@
 import React from 'react';
-import { Home, Plus, Sparkles, Phone, MessageSquare, Database, RotateCcw } from 'lucide-react';
+import { Home, Plus, Sparkles, Phone, MessageSquare, Database, RotateCcw, Newspaper, Users } from 'lucide-react';
 
 interface HeaderProps {
   totalCount: number;
   availableCount: number;
+  visitorCount?: number;
+  activeCount?: number;
   onOpenAddModal: () => void;
   onOpenPostUserAdModal: () => void;
-  onOpenBulkModal: () => void;
   onOpenMasterResetModal: () => void;
+  onOpenOcrModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   totalCount,
   availableCount,
+  visitorCount,
+  activeCount,
   onOpenAddModal,
   onOpenPostUserAdModal,
-  onOpenBulkModal,
   onOpenMasterResetModal,
+  onOpenOcrModal,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 shadow-2xl">
@@ -34,7 +38,24 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center flex-wrap gap-2.5 sm:gap-4">
+            {/* Live Visitor Count Badge in Top Bar */}
+            {typeof visitorCount === 'number' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold shadow-sm">
+                <Users className="w-3 h-3 text-emerald-400" />
+                <span className="text-slate-400 hidden xs:inline">विज़िटर्स:</span>
+                <span className="font-mono font-bold text-white tracking-wide">
+                  {visitorCount.toLocaleString('en-IN')}
+                </span>
+                {typeof activeCount === 'number' && (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold border-l border-slate-700 pl-1.5 ml-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    {activeCount} लाइव
+                  </span>
+                )}
+              </span>
+            )}
+
             <span className="text-slate-300 font-medium">
               कुल मकान:{' '}
               <span className="text-emerald-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
@@ -108,23 +129,24 @@ export const Header: React.FC<HeaderProps> = ({
               <span>मास्टर रिसेट</span>
             </button>
 
-            {/* AI Bulk Upload Button */}
+            {/* Admin OCR Photo to Text Button (PIN Protected) */}
             <button
-              onClick={onOpenBulkModal}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium text-xs sm:text-sm shadow-lg shadow-indigo-600/25 border border-indigo-400/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              onClick={onOpenOcrModal}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 hover:text-indigo-200 border border-indigo-500/40 transition-all text-xs font-semibold hover:scale-[1.02] cursor-pointer"
+              title="न्यूज़पेपर व फोटो से टेक्स्ट कनवर्टर (एडमिन पासवर्ड 3252)"
             >
-              <Sparkles className="w-4 h-4 text-amber-300 animate-spin-slow" />
-              <span>% AI बल्क अपलोड</span>
+              <Newspaper className="w-3.5 h-3.5 text-indigo-400" />
+              <span>📰 फोटो से टेक्स्ट</span>
             </button>
 
             {/* Post User Ad Button (निःशुल्क - बिना एडमिन पासवर्ड) */}
             <button
               onClick={onOpenPostUserAdModal}
               className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/25 border border-amber-300/60 transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
-              title="अपना विज्ञापन खुद पोस्ट करें (100% फ्री)"
+              title="नोटबुक या व्हाट्सएप से कॉपी-पेस्ट करके तुरंत विज्ञापन लगाएं (100% फ्री)"
             >
-              <span className="text-base">📢</span>
-              <span>अपना विज्ञापन खुद पोस्ट करें</span>
+              <span className="text-base">📋</span>
+              <span>अपना विज्ञापन पोस्ट करें (कॉपी-पेस्ट)</span>
             </button>
 
             {/* Add House Button (Admin verification) */}

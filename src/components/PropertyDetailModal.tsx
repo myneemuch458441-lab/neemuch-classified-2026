@@ -19,7 +19,13 @@ import {
   Tag,
   Key,
   Trash2,
-  Lock
+  Lock,
+  Crop,
+  Upload,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Plus
 } from 'lucide-react';
 import { Property, ListingCategory } from '../types/property';
 import { sanitizeTextForBookedProperty } from '../utils/privacyMask';
@@ -31,6 +37,9 @@ interface PropertyDetailModalProps {
   onShare: (property: Property) => void;
   onToggleAvailability: (property: Property) => Promise<void>;
   onDeleteRequest: (property: Property) => void;
+  onOpenPosterUpload?: (property: Property) => void;
+  onRequestDeletePoster?: (property: Property) => void;
+  onOpenUploadPhotos?: (property: Property) => void;
 }
 
 export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
@@ -40,12 +49,21 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   onShare,
   onToggleAvailability,
   onDeleteRequest,
+  onOpenPosterUpload,
+  onRequestDeletePoster,
+  onOpenUploadPhotos,
 }) => {
   const category: ListingCategory = property?.listingCategory || 'मकान किराए हेतु';
   const isBooked =
     property?.available === false ||
     String(property?.available).toLowerCase() === 'false' ||
     (property as any)?.status === 'booked';
+
+  const [activePhotoIndex, setActivePhotoIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    setActivePhotoIndex(0);
+  }, [property?.id]);
 
   // Sanitize title so house number / phone number does not leak when booked
   const displayTitle = React.useMemo(() => {
@@ -263,14 +281,114 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
             </div>
           </div>
 
+          {/* House Photos Section (मकान के सभी अपलोड फोटो) */}
+          {property.photos && property.photos.length > 0 ? (
+            <div className="rounded-2xl border border-indigo-500/40 bg-slate-950/80 p-4 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black text-white flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                  <span>मकान के फोटो ({property.photos.length} फोटो)</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono">
+                    फोटो {activePhotoIndex + 1} / {property.photos.length}
+                  </span>
+                </span>
+
+                {onOpenUploadPhotos && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUploadPhotos(property)}
+                    className="text-xs text-amber-400 hover:text-amber-300 font-bold underline flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>फोटो जोड़ें / बदलें</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Main Photo Viewer */}
+              <div className="relative aspect-[16/10] sm:aspect-[16/9] max-h-[340px] w-full rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center shadow-inner group">
+                <img
+                  src={property.photos[activePhotoIndex] || property.photos[0]}
+                  alt={`मकान फोटो ${activePhotoIndex + 1}`}
+                  className="w-full h-full object-contain"
+                />
+
+                {property.photos.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoIndex((prev) => (prev === 0 ? property.photos!.length - 1 : prev - 1))}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-950/80 hover:bg-slate-900 text-white border border-slate-700 shadow-md transition-transform active:scale-95"
+                      title="पिछली फोटो"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivePhotoIndex((prev) => (prev === property.photos!.length - 1 ? 0 : prev + 1))}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-full bg-slate-950/80 hover:bg-slate-900 text-white border border-slate-700 shadow-md transition-transform active:scale-95"
+                      title="अगली फोटो"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-sm text-[11px] font-mono font-bold text-amber-300 border border-slate-700">
+                  📷 {activePhotoIndex + 1} / {property.photos.length}
+                </div>
+              </div>
+
+              {/* Thumbnails Carousel */}
+              {property.photos.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  {property.photos.map((thumb, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActivePhotoIndex(idx)}
+                      className={`relative shrink-0 w-16 sm:w-20 aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        idx === activePhotoIndex
+                          ? 'border-amber-400 ring-2 ring-amber-400/40 scale-105'
+                          : 'border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={thumb} alt={`थंबनेल ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 rounded bg-slate-950/80 text-[8px] font-mono text-white">
+                        {idx + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            onOpenUploadPhotos && (
+              <div className="p-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/40 text-center flex items-center justify-between">
+                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-slate-500" />
+                  <span>इस मकान की कोई फोटो अपलोड नहीं है (वैकल्पिक)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenUploadPhotos(property)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ फोटो अपलोड करें</span>
+                </button>
+              </div>
+            )
+          )}
+
           {/* Description */}
           <div>
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              विस्तृत विवरण
+              विस्तृत विवरण (विज्ञापन टेक्स्ट)
             </h4>
-            <p className="text-sm text-slate-200 leading-relaxed bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80">
+            <div className="text-sm text-slate-200 leading-relaxed bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 whitespace-pre-line font-sans">
               {displayDescription || 'कोई विशेष विवरण उपलब्ध नहीं है।'}
-            </p>
+            </div>
           </div>
 
           {/* Amenities / Features */}
@@ -345,6 +463,89 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
               </a>
             </div>
           )}
+
+          {/* Section Divider: प्रायोजित दुकान प्रचार पोस्टर */}
+          <div className="relative flex items-center justify-center my-2 select-none">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-dashed border-amber-500/40" />
+            </div>
+            <div className="relative px-3 py-1 rounded-full bg-slate-900 border border-amber-500/50 text-xs font-bold text-amber-300 flex items-center gap-1.5 shadow">
+              <Store className="w-3.5 h-3.5 text-amber-400" />
+              <span>प्रायोजित दुकान प्रचार पोस्टर विज्ञापन</span>
+            </div>
+          </div>
+
+          {/* 2:1 Shop Poster Advertisement Box */}
+          <div className="rounded-2xl border-2 border-amber-500/35 bg-gradient-to-b from-slate-950 via-slate-900/90 to-amber-950/20 p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-amber-400" />
+                <span>दुकान / बिजनेस 2:1 पोस्टर विज्ञापन</span>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-mono font-bold">2:1 BANNER</span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                {onOpenPosterUpload && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPosterUpload(property)}
+                    className="text-xs text-amber-400 hover:text-amber-300 font-bold underline"
+                  >
+                    {property.posterAd?.imageUrl ? 'पोस्टर बदलें' : '+ पोस्टर लगाएं'}
+                  </button>
+                )}
+
+                {property.posterAd?.imageUrl && onRequestDeletePoster && (
+                  <button
+                    type="button"
+                    onClick={() => onRequestDeletePoster(property)}
+                    className="text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 rounded-lg border border-rose-500/30 font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    title="एडमिन पासवर्ड द्वारा पोस्टर डिलीट करें"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>पोस्टर डिलीट</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {property.posterAd?.imageUrl ? (
+              <div className="space-y-3">
+                <div className="relative aspect-[2/1] max-w-[440px] mx-auto rounded-2xl overflow-hidden border-2 border-amber-500/50 bg-slate-950 shadow-xl">
+                  <img
+                    src={property.posterAd.imageUrl}
+                    alt="दुकान 2:1 पोस्टर"
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 text-amber-300 border border-amber-400/50 text-[9px] font-mono font-bold shadow">
+                    2:1 BANNER
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 text-center space-y-2">
+                <div className="text-xs text-amber-200">
+                  इस विज्ञापन के नीचे अपनी दुकान या व्यवसाय का 2:1 पोस्टर विज्ञापन लगाएं (100% फ्री)
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[11px] text-slate-300">
+                  <Crop className="w-3.5 h-3.5 text-amber-400" />
+                  <span>आवश्यक पोस्टर साइज: </span>
+                  <strong className="text-amber-300 font-mono">2:1 (Landscape - 1200×600 px)</strong>
+                </div>
+                {onOpenPosterUpload && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onOpenPosterUpload(property)}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow"
+                    >
+                      + 2:1 पोस्टर विज्ञापन अपलोड करें
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Modal Footer Actions: WhatsApp, Share, Edit, and Admin Delete */}

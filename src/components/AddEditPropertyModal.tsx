@@ -12,10 +12,12 @@ import {
   Store,
   Shield,
   Tag,
-  Key
+  Key,
+  Camera
 } from 'lucide-react';
 import { Property, PropertyConfig, ListingCategory } from '../types/property';
 import { NEEMUCH_COLONIES } from '../data/seedProperties';
+import { HousePhotosUploader } from './HousePhotosUploader';
 
 interface AddEditPropertyModalProps {
   isOpen: boolean;
@@ -51,6 +53,7 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
   const [landmark, setLandmark] = useState('');
   const [available, setAvailable] = useState(true);
   const [isAiDetected, setIsAiDetected] = useState(false);
+  const [photos, setPhotos] = useState<string[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -81,6 +84,7 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
       setLandmark(initialProperty.landmark || '');
       setAvailable(initialProperty.available !== false);
       setIsAiDetected(Boolean(initialProperty.aiDetected));
+      setPhotos(initialProperty.photos || []);
     } else {
       // Default new form - rent is empty by default unless user knows it
       setListingCategory('मकान किराए हेतु');
@@ -100,6 +104,7 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
       setLandmark('');
       setAvailable(true);
       setIsAiDetected(false);
+      setPhotos([]);
     }
     setShowDeletePrompt(false);
     setDeletePassword('');
@@ -170,6 +175,7 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
       whatsappNumber: cleanWa.length === 10 ? `91${cleanWa}` : cleanWa,
       description: description.trim(),
       imageUrl: '', // Always empty - no photos on screen
+      photos,
       aiDetected: isAiDetected,
       aiConfidence: isAiDetected ? 0.95 : undefined,
       aiTags: isAiDetected ? [config, listingCategory, finalColony.split(' ')[0], 'AI सत्यापित'] : [listingCategory],
@@ -556,6 +562,14 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
               </span>
             </label>
           </div>
+
+          {/* Optional House Photos Uploader with Right-Checkmark Toggle */}
+          <HousePhotosUploader
+            photos={photos}
+            onChange={setPhotos}
+            maxPhotos={10}
+            initiallyOpen={Boolean(initialProperty?.photos && initialProperty.photos.length > 0)}
+          />
 
           {/* Form Action Buttons */}
           <div className="flex items-center justify-between pt-3 border-t border-slate-800">

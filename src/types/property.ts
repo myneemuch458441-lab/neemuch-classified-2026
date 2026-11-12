@@ -16,6 +16,14 @@ export type PropertyConfig =
   | 'दुकान (Shop)'
   | 'कमर्शियल स्पेस';
 
+export interface PosterAd {
+  imageUrl: string; // Base64 data URI (2:1 landscape banner ratio)
+  shopName?: string; // दुकान / व्यवसाय का नाम
+  contactNumber?: string; // संपर्क नंबर (कॉल / व्हाट्सएप)
+  tagline?: string; // ऑफर या मुख्य विवरण
+  updatedAt?: string;
+}
+
 export interface Property {
   id: string;
   title: string;
@@ -31,6 +39,8 @@ export interface Property {
   whatsappNumber: string;
   description: string;
   imageUrl: string;
+  photos?: string[]; // मकान के फोटो (वैकल्पिक - अधिकतम 10 फोटो)
+  posterAd?: PosterAd; // हर विज्ञापन के नीचे 2:1 साइज पोस्टर विज्ञापन
   aiDetected?: boolean;
   aiConfidence?: number;
   aiTags?: string[];
@@ -39,14 +49,4 @@ export interface Property {
   available: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface BulkUploadItem {
-  id: string;
-  file?: File;
-  previewUrl: string;
-  status: 'pending' | 'processing' | 'success' | 'failed';
-  extractedData?: Partial<Property>;
-  rawNotes?: string;
-  error?: string;
 }

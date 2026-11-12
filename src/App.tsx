@@ -27,23 +27,23 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
-import { Property, PropertyConfig, ListingCategory } from './types/property';
+import { Property, PropertyConfig, ListingCategory, PosterAd } from './types/property';
 import { NEEMUCH_COLONIES, LISTING_CATEGORIES } from './data/seedProperties';
 import {
   subscribeToProperties,
   addProperty,
   updateProperty,
   deleteProperty,
-  bulkAddProperties,
   wipeAllPropertiesFromFirestore,
   resetAllRentsInFirestore,
-  restoreDefaultSeedInFirestore
+  restoreDefaultSeedInFirestore,
+  updatePropertyPosterAd,
+  updatePropertyPhotos
 } from './services/propertyService';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
 import { PropertyCard } from './components/PropertyCard';
 import { AddEditPropertyModal } from './components/AddEditPropertyModal';
-import { AIBulkUploadModal } from './components/AIBulkUploadModal';
 import { PropertyDetailModal } from './components/PropertyDetailModal';
 import { WhatsAppShareModal } from './components/WhatsAppShareModal';
 import { AdminDeleteModal } from './components/AdminDeleteModal';
@@ -52,6 +52,18 @@ import { AdminEditAuthModal } from './components/AdminEditAuthModal';
 import { AdminShutterToggleModal } from './components/AdminShutterToggleModal';
 import { AdminAddAuthModal } from './components/AdminAddAuthModal';
 import { PostUserAdModal } from './components/PostUserAdModal';
+import { AdminOcrModal } from './components/AdminOcrModal';
+import { PublicPosterUploadModal } from './components/PublicPosterUploadModal';
+import { AdminDeletePosterModal } from './components/AdminDeletePosterModal';
+import { PropertyPhotoGalleryModal } from './components/PropertyPhotoGalleryModal';
+import { UploadHousePhotosModal } from './components/UploadHousePhotosModal';
+import { VisitorCountBar } from './components/VisitorCountBar';
+import {
+  subscribeToVisitorStats,
+  recordVisitorHit,
+  getLocalVisitorStats,
+  VisitorStats
+} from './services/visitorService';
 
 export default function App() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -69,8 +81,9 @@ export default function App() {
   // Modal states
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isPostUserAdModalOpen, setIsPostUserAdModalOpen] = useState(false);
+  const [prefilledAdText, setPrefilledAdText] = useState('');
+  const [isAdminOcrModalOpen, setIsAdminOcrModalOpen] = useState(false);
   const [detailProperty, setDetailProperty] = useState<Property | null>(null);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
 
@@ -92,10 +105,29 @@ export default function App() {
   // Master Reset Modal state (Password: 3252)
   const [isMasterResetModalOpen, setIsMasterResetModalOpen] = useState(false);
 
-  // Subscribe to real-time Firestore collection
+  // Public 1:1 Poster Upload Modal state (100% public, no password required)
+  const [posterProperty, setPosterProperty] = useState<Property | null>(null);
+  const [isPosterModalOpen, setIsPosterModalOpen] = useState(false);
+
+  // Admin Delete Poster Modal state (Password: 3252 protected)
+  const [adminDeletePosterProperty, setAdminDeletePosterProperty] = useState<Property | null>(null);
+  const [isAdminDeletePosterModalOpen, setIsAdminDeletePosterModalOpen] = useState(false);
+
+  // House Photo Gallery Modal state (बाहर मेन पेज से फोटो देखने हेतु)
+  const [photoGalleryProperty, setPhotoGalleryProperty] = useState<Property | null>(null);
+  const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
+
+  // Upload/Edit House Photos Modal state (वैकल्पिक - अधिकतम 10 फोटो)
+  const [uploadPhotosProperty, setUploadPhotosProperty] = useState<Property | null>(null);
+  const [isUploadPhotosOpen, setIsUploadPhotosOpen] = useState(false);
+
+  // Visitor stats state (Live visitor counter bar with 15-20 daily auto increment)
+  const [visitorStats, setVisitorStats] = useState<VisitorStats>(() => getLocalVisitorStats());
+
+  // Subscribe to real-time Firestore collection & Live Visitor Counter
   useEffect(() => {
     setIsLoading(true);
-    const unsubscribe = subscribeToProperties(
+    const unsubscribeProps = subscribeToProperties(
       (data) => {
         setProperties(data);
         setIsLoading(false);
@@ -108,7 +140,16 @@ export default function App() {
       }
     );
 
-    return () => unsubscribe();
+    // Record session visit and subscribe to live visitor count updates
+    recordVisitorHit();
+    const unsubscribeVisitors = subscribeToVisitorStats((stats) => {
+      setVisitorStats(stats);
+    });
+
+    return () => {
+      unsubscribeProps();
+      unsubscribeVisitors();
+    };
   }, []);
 
   const showNotification = (msg: string) => {
@@ -262,12 +303,6 @@ export default function App() {
     return count;
   };
 
-  // Handler: Bulk Save
-  const handleBulkSave = async (items: Omit<Property, 'id'>[]) => {
-    const count = await bulkAddProperties(items);
-    showNotification(`बधाई! ${count} लिस्टिंग्स डेटाबेस में हमेशा के लिए सेव हो गई हैं।`);
-    return count;
-  };
 
   // Handler: Request Shutter Toggle with Admin Password Verification (PIN: 3252)
   const handleRequestToggleAvailability = (property: Property) => {
@@ -301,6 +336,78 @@ export default function App() {
     setIsAddEditModalOpen(true);
   };
 
+  // Handler: Open Public 1:1 Poster Upload Modal (No Password required)
+  const handleOpenPosterModal = (property: Property) => {
+    setPosterProperty(property);
+    setIsPosterModalOpen(true);
+  };
+
+  // Handler: Save or Remove 1:1 Poster Ad
+  const handleSavePoster = async (propertyId: string, poster: PosterAd | null) => {
+    // Optimistic local state update
+    setProperties((prev) =>
+      prev.map((p) => (p.id === propertyId ? { ...p, posterAd: poster || undefined } : p))
+    );
+    if (detailProperty && detailProperty.id === propertyId) {
+      setDetailProperty((prev) => (prev ? { ...prev, posterAd: poster || undefined } : null));
+    }
+    await updatePropertyPosterAd(propertyId, poster);
+    showNotification(
+      poster
+        ? '🎉 2:1 दुकान पोस्टर विज्ञापन सफलतापूर्वक लाइव हो गया है!'
+        : 'पोस्टर विज्ञापन हटा दिया गया है।'
+    );
+  };
+
+  // Handler: Request Admin Delete for Poster (PIN protected)
+  const handleRequestDeletePoster = (property: Property) => {
+    setAdminDeletePosterProperty(property);
+    setIsAdminDeletePosterModalOpen(true);
+  };
+
+  // Handler: Confirm Admin Delete for Poster (PIN verified)
+  const handleConfirmDeletePoster = async (propertyId: string) => {
+    setProperties((prev) =>
+      prev.map((p) => (p.id === propertyId ? { ...p, posterAd: undefined } : p))
+    );
+    if (detailProperty && detailProperty.id === propertyId) {
+      setDetailProperty((prev) => (prev ? { ...prev, posterAd: undefined } : null));
+    }
+    await updatePropertyPosterAd(propertyId, null);
+    showNotification('पोस्टर विज्ञापन सफलतापूर्वक डिलीट कर दिया गया है!');
+  };
+
+  // Handler: Open House Photo Gallery Modal
+  const handleViewPhotos = (property: Property) => {
+    setPhotoGalleryProperty(property);
+    setIsPhotoGalleryOpen(true);
+  };
+
+  // Handler: Open House Photo Upload Modal
+  const handleOpenUploadPhotos = (property: Property) => {
+    setUploadPhotosProperty(property);
+    setIsUploadPhotosOpen(true);
+  };
+
+  // Handler: Save House Photos (up to 10 photos)
+  const handleSavePropertyPhotos = async (propertyId: string, photos: string[]) => {
+    setProperties((prev) =>
+      prev.map((p) => (p.id === propertyId ? { ...p, photos } : p))
+    );
+    if (detailProperty && detailProperty.id === propertyId) {
+      setDetailProperty((prev) => (prev ? { ...prev, photos } : null));
+    }
+    if (photoGalleryProperty && photoGalleryProperty.id === propertyId) {
+      setPhotoGalleryProperty((prev) => (prev ? { ...prev, photos } : null));
+    }
+    await updatePropertyPhotos(propertyId, photos);
+    showNotification(
+      photos.length > 0
+        ? `🎉 ${photos.length} मकान के फोटो सफलतापूर्वक अपडेट हो गए हैं!`
+        : 'मकान के फोटो हटा दिए गए हैं।'
+    );
+  };
+
   // Reset Filters
   const handleResetFilters = () => {
     setSelectedCategory('All');
@@ -321,10 +428,15 @@ export default function App() {
       <Header
         totalCount={properties.length}
         availableCount={availableCount}
+        visitorCount={visitorStats.totalVisitors}
+        activeCount={visitorStats.activeNow}
         onOpenAddModal={handleRequestAdd}
-        onOpenPostUserAdModal={() => setIsPostUserAdModalOpen(true)}
-        onOpenBulkModal={() => setIsBulkModalOpen(true)}
+        onOpenPostUserAdModal={() => {
+          setPrefilledAdText('');
+          setIsPostUserAdModalOpen(true);
+        }}
         onOpenMasterResetModal={() => setIsMasterResetModalOpen(true)}
+        onOpenOcrModal={() => setIsAdminOcrModalOpen(true)}
       />
 
       {/* Notification Toast */}
@@ -336,7 +448,10 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-5 sm:py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Live Visitor Count Bar Screen (15-20 Daily Growth + Live Active Analytics) */}
+        <VisitorCountBar stats={visitorStats} totalListingsCount={properties.length} />
+
         {/* Banner Section with Categories overview */}
         <section className="relative rounded-3xl overflow-hidden border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/95 to-indigo-950/70 p-5 sm:p-7 shadow-2xl">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -368,21 +483,34 @@ export default function App() {
               </h2>
 
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                विकास नगर, जैन कालोनी, स्कीम 36, कैंट, टैगोर नगर, बघाना में <span className="text-amber-400 font-semibold">गिरवी मकान</span>, <span className="text-cyan-400 font-semibold">दुकानें</span>, <span className="text-emerald-400 font-semibold">बिकाऊ मकान</span> व <span className="text-teal-400 font-semibold">किराया लिस्टिंग्स</span> खोजें या 500 फोटो AI बल्क अपलोड से स्वतः फ़िल्टर करें।
+                विकास नगर, जैन कालोनी, स्कीम 36, कैंट, टैगोर नगर, बघाना में <span className="text-amber-400 font-semibold">गिरवी मकान</span>, <span className="text-cyan-400 font-semibold">दुकानें</span>, <span className="text-emerald-400 font-semibold">बिकाऊ मकान</span> व <span className="text-teal-400 font-semibold">किराया लिस्टिंग्स</span> खोजें एवं सीधे व्हाट्सएप व कॉल पर संपर्क करें।
               </p>
 
               {/* Direct Banner CTA for public ad posting */}
               <div className="pt-1 flex items-center gap-3 flex-wrap">
                 <button
-                  onClick={() => setIsPostUserAdModalOpen(true)}
+                  onClick={() => {
+                    setPrefilledAdText('');
+                    setIsPostUserAdModalOpen(true);
+                  }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/20 border border-amber-300/50 hover:scale-[1.03] active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  <span className="text-base animate-bounce">📢</span>
-                  <span>अपना विज्ञापन खुद पोस्ट करें (निःशुल्क)</span>
+                  <span className="text-base animate-bounce">📋</span>
+                  <span>कॉपी-पेस्ट से डायरेक्ट विज्ञापन लगाएं (नो फॉर्म)</span>
                 </button>
+
+                <button
+                  onClick={() => setIsAdminOcrModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-indigo-300 hover:text-indigo-200 border border-indigo-500/40 text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                  title="अख़बार या बोर्ड की फोटो से टेक्स्ट बनाएं (एडमिन पासवर्ड 3252)"
+                >
+                  <span className="text-sm">📰</span>
+                  <span>फोटो से टेक्स्ट निकालें (OCR)</span>
+                </button>
+
                 <span className="text-xs sm:text-[13px] text-amber-300 font-semibold bg-amber-500/15 px-3 py-1.5 rounded-xl border border-amber-500/30 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>कोई log in या OTP की जरूरत नहीं, विज्ञापन लिखें और पोस्ट करें, विज्ञापन तुरंत लाइव करें!</span>
+                  <span>व्हाट्सएप या नोट से सिर्फ पेस्ट करें और 10 सेकंड में तुरंत लाइव करें!</span>
                 </span>
               </div>
             </div>
@@ -470,7 +598,7 @@ export default function App() {
             <p className="text-sm font-medium">नीमच क्लासिफाइड डेटा लोड हो रहा है...</p>
           </div>
         ) : filteredProperties.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 items-stretch">
             {filteredProperties.map((property) => (
               <PropertyCard
                 key={property.id}
@@ -480,6 +608,9 @@ export default function App() {
                 onShare={(prop) => setShareProperty(prop)}
                 onDeleteRequest={handleRequestDelete}
                 onToggleAvailabilityRequest={handleRequestToggleAvailability}
+                onOpenPosterUpload={handleOpenPosterModal}
+                onRequestDeletePoster={handleRequestDeletePoster}
+                onViewPhotos={handleViewPhotos}
               />
             ))}
           </div>
@@ -530,14 +661,6 @@ export default function App() {
         >
           <Plus className="w-5 h-5 stroke-[3]" />
         </button>
-
-        <button
-          onClick={() => setIsBulkModalOpen(true)}
-          className="p-3 rounded-full bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-600/40 flex items-center justify-center"
-          title="% AI बल्क अपलोड"
-        >
-          <Sparkles className="w-5 h-5 text-amber-300" />
-        </button>
       </div>
 
       {/* Footer */}
@@ -585,12 +708,6 @@ export default function App() {
         initialProperty={editingProperty}
       />
 
-      <AIBulkUploadModal
-        isOpen={isBulkModalOpen}
-        onClose={() => setIsBulkModalOpen(false)}
-        onBulkSave={handleBulkSave}
-      />
-
       <PropertyDetailModal
         property={detailProperty}
         onClose={() => setDetailProperty(null)}
@@ -601,6 +718,9 @@ export default function App() {
         onShare={(prop) => setShareProperty(prop)}
         onToggleAvailability={async (prop) => handleRequestToggleAvailability(prop)}
         onDeleteRequest={handleRequestDelete}
+        onOpenPosterUpload={handleOpenPosterModal}
+        onRequestDeletePoster={handleRequestDeletePoster}
+        onOpenUploadPhotos={handleOpenUploadPhotos}
       />
 
       <WhatsAppShareModal
@@ -664,8 +784,68 @@ export default function App() {
       {/* Self-Service User Ad Posting Modal (No Admin Password required) */}
       <PostUserAdModal
         isOpen={isPostUserAdModalOpen}
-        onClose={() => setIsPostUserAdModalOpen(false)}
+        onClose={() => {
+          setIsPostUserAdModalOpen(false);
+          setPrefilledAdText('');
+        }}
         onPostAd={handlePostUserAd}
+        initialAdText={prefilledAdText}
+      />
+
+      {/* Admin OCR Newspaper & Photo to Text Modal (Password: 3252) */}
+      <AdminOcrModal
+        isOpen={isAdminOcrModalOpen}
+        onClose={() => setIsAdminOcrModalOpen(false)}
+        onUseForAd={(extractedText) => {
+          setPrefilledAdText(extractedText);
+          setIsAdminOcrModalOpen(false);
+          setIsPostUserAdModalOpen(true);
+        }}
+      />
+
+      {/* Public 1:1 Shop Poster Advertisement Modal (100% Free, No Password Required) */}
+      <PublicPosterUploadModal
+        isOpen={isPosterModalOpen}
+        property={posterProperty}
+        onClose={() => {
+          setIsPosterModalOpen(false);
+          setPosterProperty(null);
+        }}
+        onSavePoster={handleSavePoster}
+        onRequestDeletePoster={handleRequestDeletePoster}
+      />
+
+      {/* Admin Delete Poster Verification Modal (Password: 3252 Protected) */}
+      <AdminDeletePosterModal
+        isOpen={isAdminDeletePosterModalOpen}
+        property={adminDeletePosterProperty}
+        onClose={() => {
+          setIsAdminDeletePosterModalOpen(false);
+          setAdminDeletePosterProperty(null);
+        }}
+        onConfirmDeletePoster={handleConfirmDeletePoster}
+      />
+
+      {/* House Photo Gallery Modal (बाहर मेन पेज से फोटो देखने हेतु) */}
+      <PropertyPhotoGalleryModal
+        property={photoGalleryProperty}
+        isOpen={isPhotoGalleryOpen}
+        onClose={() => {
+          setIsPhotoGalleryOpen(false);
+          setPhotoGalleryProperty(null);
+        }}
+        onOpenUploadPhotos={handleOpenUploadPhotos}
+      />
+
+      {/* Upload/Edit House Photos Modal (अधिकतम 10 फोटो) */}
+      <UploadHousePhotosModal
+        property={uploadPhotosProperty}
+        isOpen={isUploadPhotosOpen}
+        onClose={() => {
+          setIsUploadPhotosOpen(false);
+          setUploadPhotosProperty(null);
+        }}
+        onSavePhotos={handleSavePropertyPhotos}
       />
     </div>
   );

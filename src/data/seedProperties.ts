@@ -1,10 +1,13 @@
 import { Property, ListingCategory } from '../types/property';
 
 export const NEEMUCH_COLONIES = [
+  'शक्ति नगर (Shakti Nagar)',
+  'शक्ति नगर विस्तार (Shakti Nagar Vistar)',
   'विकास नगर (Vikas Nagar)',
   'जैन कालोनी (Jain Colony)',
   'टैगोर नगर (Tagore Nagar)',
   'स्कीम नंबर 36 (Scheme 36)',
+  'स्कीम नंबर 9 (Scheme 9)',
   'बघाना मुख्य क्षेत्र (Baghana)',
   'कैंट क्षेत्र (Neemuch Cantt)',
   'गोमाबाई रोड (Gomabai Road)',
@@ -14,7 +17,11 @@ export const NEEMUCH_COLONIES = [
   'हुडको कालोनी (HUDCO Colony)',
   'अंबेडकर कालोनी (Ambedkar Colony)',
   'गांधी नगर (Gandhi Nagar)',
-  'ज्ञान मंदिर रोड (Gyan Mandir Road)'
+  'ज्ञान मंदिर रोड (Gyan Mandir Road)',
+  'राम नगर (Ram Nagar)',
+  'इंदिरा नगर (Indira Nagar)',
+  'नीमच सिटी (Neemuch City)',
+  'कनावटी रोड (Kanawati Road)'
 ];
 
 export const LISTING_CATEGORIES: ListingCategory[] = [

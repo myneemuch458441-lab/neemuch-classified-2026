@@ -15,7 +15,10 @@ import {
   Tag,
   Key,
   Trash2,
-  Lock
+  Lock,
+  Crop,
+  Upload,
+  Camera
 } from 'lucide-react';
 import { Property, ListingCategory } from '../types/property';
 import { sanitizeTextForBookedProperty } from '../utils/privacyMask';
@@ -27,6 +30,9 @@ interface PropertyCardProps {
   onSelect: (property: Property) => void;
   onDeleteRequest: (property: Property) => void;
   onToggleAvailabilityRequest: (property: Property) => void;
+  onOpenPosterUpload: (property: Property) => void;
+  onRequestDeletePoster: (property: Property) => void;
+  onViewPhotos?: (property: Property) => void;
 }
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({
@@ -36,6 +42,9 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   onSelect,
   onDeleteRequest,
   onToggleAvailabilityRequest,
+  onOpenPosterUpload,
+  onRequestDeletePoster,
+  onViewPhotos,
 }) => {
   const category: ListingCategory = property.listingCategory || 'मकान किराए हेतु';
   const isBooked =
@@ -164,10 +173,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   };
 
   return (
-    <div className={`group bg-slate-900/90 hover:bg-slate-900 border ${
-      isBooked ? 'border-rose-900/50 hover:border-rose-600/50' : 'border-slate-800 hover:border-emerald-500/50'
-    } rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-emerald-950/30 transition-all duration-300 flex flex-col justify-between`}>
-      {/* Booked Status Top Alert Ribbon */}
+    <div className="h-full flex flex-col justify-between gap-2.5 group/listing">
+      {/* 1. मुख्य प्रॉपर्टी विज्ञापन कार्ड (Main Property Classified Listing Card) */}
+      <div className={`flex-1 flex flex-col justify-between group bg-slate-900/90 hover:bg-slate-900 border ${
+        isBooked ? 'border-rose-900/50 hover:border-rose-600/50' : 'border-slate-800 hover:border-emerald-500/50'
+      } rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:shadow-emerald-950/30 transition-all duration-300`}>
+        {/* Booked Status Top Alert Ribbon */}
       {isBooked && (
         <div className="bg-rose-950/90 border-b border-rose-500/40 px-3.5 py-1.5 flex items-center justify-between text-xs text-rose-300 font-bold shadow-inner">
           <span className="inline-flex items-center gap-1.5">
@@ -181,7 +192,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
       )}
 
       {/* Architectural Blueprint Card Header - NO PHOTOS SHOWN ON SCREEN */}
-      <div>
+      <div className="flex-1 flex flex-col justify-between">
         <div
           className="relative p-4 sm:p-5 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800/80 cursor-pointer overflow-hidden group-hover:border-emerald-500/30 transition-colors"
           onClick={() => onSelect(property)}
@@ -258,69 +269,94 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           </div>
         </div>
 
-        {/* Card Body */}
-        <div className="p-3.5 space-y-2.5">
-          {/* Ad Purpose / Role Tag if present */}
-          {property.adPurpose && (
-            <div className="flex items-center gap-1.5">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                property.adPurpose.includes('मालिक') || property.adPurpose.includes('बेचना')
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                  : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-              }`}>
-                {property.adPurpose}
-              </span>
+        {/* Card Body - Flex-1 so cards with varying content expand evenly */}
+        <div className="flex-1 flex flex-col justify-between p-3.5">
+          <div className="space-y-2.5">
+            {/* Ad Purpose / Role Tag if present */}
+            {property.adPurpose && (
+              <div className="flex items-center gap-1.5">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                  property.adPurpose.includes('मालिक') || property.adPurpose.includes('बेचना')
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                }`}>
+                  {property.adPurpose}
+                </span>
+              </div>
+            )}
+
+            {/* Title */}
+            <h3
+              onClick={() => onSelect(property)}
+              className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-1 cursor-pointer"
+              title={displayTitle}
+            >
+              {displayTitle}
+            </h3>
+
+            {/* Colony / Locality */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-300">
+              <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span className="truncate font-medium">{property.colony}</span>
             </div>
-          )}
 
-          {/* Title */}
-          <h3
-            onClick={() => onSelect(property)}
-            className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-1 cursor-pointer"
-            title={displayTitle}
-          >
-            {displayTitle}
-          </h3>
+            {/* Landmark if present */}
+            {property.landmark && (
+              <div className="text-[11px] text-slate-400 truncate pl-5 -mt-1">
+                पहचान: {displayLandmark}
+              </div>
+            )}
 
-          {/* Colony / Locality */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-300">
-            <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-            <span className="truncate font-medium">{property.colony}</span>
+            {/* Description snippet */}
+            <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+              {displayDescription || 'नीमच क्लासिफाइड पर सूचीबद्ध प्रॉपर्टी।'}
+            </p>
+
+            {/* Features Tags */}
+            {property.features && property.features.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {property.features.slice(0, 3).map((feat, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-0.5 rounded-md bg-slate-950 text-slate-300 text-[10px] border border-slate-800"
+                  >
+                    ✓ {feat}
+                  </span>
+                ))}
+                {property.features.length > 3 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-slate-950 text-slate-500 text-[10px]">
+                    +{property.features.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* House Photos Button: बाहर मेन पेज पर सिर्फ मकान के फोटो देखने के लिए यहां क्लिक करे */}
+            {property.photos && property.photos.length > 0 && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewPhotos?.(property);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-950/90 via-slate-900 to-indigo-950/90 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 hover:text-white text-xs font-bold flex items-center justify-between transition-all shadow-md group cursor-pointer active:scale-[0.99]"
+                  title="मकान के सभी अपलोड फोटो देखें"
+                >
+                  <span className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                    <span className="font-extrabold tracking-wide">मकान के फोटो देखने के लिए यहां क्लिक करे</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold shrink-0">
+                    {property.photos.length} फोटो
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Landmark if present */}
-          {property.landmark && (
-            <div className="text-[11px] text-slate-400 truncate pl-5 -mt-1">
-              पहचान: {displayLandmark}
-            </div>
-          )}
-
-          {/* Description snippet */}
-          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-            {displayDescription || 'नीमच क्लासिफाइड पर सूचीबद्ध प्रॉपर्टी।'}
-          </p>
-
-          {/* Features Tags */}
-          {property.features && property.features.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {property.features.slice(0, 3).map((feat, idx) => (
-                <span
-                  key={idx}
-                  className="px-2 py-0.5 rounded-md bg-slate-950 text-slate-300 text-[10px] border border-slate-800"
-                >
-                  ✓ {feat}
-                </span>
-              ))}
-              {property.features.length > 3 && (
-                <span className="px-1.5 py-0.5 rounded-md bg-slate-950 text-slate-500 text-[10px]">
-                  +{property.features.length - 3}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Contact Bar with Shutter Button directly above Delete button */}
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+          {/* Contact Bar with Shutter Button directly above Delete button - pinned to bottom */}
+          <div className="pt-2.5 mt-3 border-t border-slate-800 flex items-center justify-between text-xs">
             {isBooked ? (
               <div
                 className="flex items-center gap-1.5 text-xs text-rose-400 font-mono py-0.5"
@@ -372,7 +408,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
       </div>
 
       {/* Card Action Buttons: WhatsApp, Share, Edit, and Admin Delete */}
-      <div className="p-3 pt-0 grid grid-cols-12 gap-1.5">
+      <div className="shrink-0 p-3 pt-0 grid grid-cols-12 gap-1.5">
         {/* Direct WhatsApp Chat Button - Disabled when booked */}
         {isBooked ? (
           <button
@@ -426,6 +462,104 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
           <span className="text-[11px] truncate">डिलीट</span>
         </button>
+      </div>
+    </div>
+
+      {/* 2. स्पष्ट विभाजक पट्टी (Clear Visual Division between House Listing & Shop Poster) */}
+      <div className="shrink-0 relative flex items-center justify-center my-1 select-none">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-dashed border-amber-500/40" />
+        </div>
+        <div className="relative px-3 py-0.5 rounded-full bg-slate-950 border border-amber-500/50 text-[10px] font-black text-amber-300 flex items-center gap-1.5 shadow-md">
+          <Store className="w-3 h-3 text-amber-400" />
+          <span>दुकान प्रचार पोस्टर विज्ञापन</span>
+        </div>
+      </div>
+
+      {/* 3. अलग दुकान / बिजनेस 2:1 पोस्टर बॉक्स (Distinct Dedicated Shop Poster Box) */}
+      <div className="shrink-0 rounded-2xl border-2 border-amber-500/35 hover:border-amber-400/80 bg-gradient-to-b from-slate-950 via-slate-900/95 to-amber-950/20 p-3 sm:p-3.5 shadow-xl transition-all">
+        {property.posterAd && property.posterAd.imageUrl ? (
+          /* Case A: Poster Already Uploaded - 2:1 Aspect Ratio Display */
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-1 text-[11px] h-6">
+              <span className="font-extrabold text-amber-300 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-amber-400" />
+                <span>दुकान / बिजनेस 2:1 पोस्टर</span>
+                <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold">2:1 BANNER</span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenPosterUpload(property)}
+                  className="text-[10px] text-slate-400 hover:text-amber-300 font-semibold underline flex items-center gap-1 transition-colors cursor-pointer"
+                  title="पोस्टर बदलें या अपडेट करें"
+                >
+                  <span>बदलें</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onRequestDeletePoster(property)}
+                  className="text-[10px] text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30 font-bold flex items-center gap-1 transition-all cursor-pointer"
+                  title="एडमिन पासवर्ड द्वारा पोस्टर डिलीट करें"
+                >
+                  <Trash2 className="w-2.5 h-2.5 text-rose-400" />
+                  <span>डिलीट</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2:1 Landscape Frame Container */}
+            <div
+              onClick={() => onOpenPosterUpload(property)}
+              className="relative aspect-[2/1] w-full rounded-xl overflow-hidden border border-amber-500/40 bg-slate-950 shadow-xl cursor-pointer group/poster"
+              title="2:1 पोस्टर देखने या बदलने के लिए क्लिक करें"
+            >
+              <img
+                src={property.posterAd.imageUrl}
+                alt="दुकान 2:1 पोस्टर"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover/poster:scale-105"
+              />
+
+              {/* 2:1 Tag on Image */}
+              <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-slate-950/80 text-amber-300 border border-amber-400/50 text-[9px] font-mono font-bold shadow">
+                2:1 BANNER
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Case B: No Poster Yet - Prominent Public Upload CTA Box with matching 2:1 Aspect Ratio Frame */
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-1 text-[11px] h-6">
+              <span className="font-extrabold text-amber-300 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-amber-400" />
+                <span>दुकान प्रचार पोस्टर विज्ञापन</span>
+              </span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                100% फ्री
+              </span>
+            </div>
+
+            {/* 2:1 Landscape Upload Frame - exact aspect-[2/1] matching uploaded posters */}
+            <div
+              onClick={() => onOpenPosterUpload(property)}
+              className="relative aspect-[2/1] w-full rounded-xl border-2 border-dashed border-amber-500/50 hover:border-amber-400 bg-gradient-to-b from-slate-950/90 to-amber-950/20 p-2.5 flex flex-col items-center justify-center gap-2 text-center shadow-inner cursor-pointer transition-all group/cta"
+              title="यहाँ अपनी दुकान या फर्म का 2:1 साइज पोस्टर अपलोड करें"
+            >
+              <div className="bg-slate-900/90 border border-amber-500/30 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 flex items-center justify-center gap-1.5">
+                <Crop className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>पोस्टर साइज: </span>
+                <strong className="text-amber-300 font-mono">2:1 (1200×600 px)</strong>
+              </div>
+
+              <span className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 border border-amber-300/50 group-hover/cta:scale-105 transition-transform">
+                <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>+ 2:1 पोस्टर विज्ञापन अपलोड करें</span>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
