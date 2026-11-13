@@ -4,17 +4,50 @@ export type ListingCategory =
   | 'दुकान'
   | 'मकान बेचना है';
 
-export type PropertyConfig = 
+export const PROPERTY_CONFIG_OPTIONS = [
+  'एक कमरा',
+  'एक कमरा किचन',
+  'एक हॉल',
+  'एक हॉल अटैच किचन',
+  '2 कमरे किचन',
+  '3 कमरे किचन',
+  '4 कमरे किचन',
+  '1BHK',
+  '2BHK',
+  '3BHK',
+  '4BHK',
+  '5BHK',
+  'ग्राउंड फ्लोर',
+  '1st फ्लोर',
+  '2nd फ्लोर',
+  '3rd फ्लोर',
+  'ऑफिस स्पेस',
+  'दुकान ग्राउंड फ्लोर',
+  'दुकान 1st फ्लोर',
+  'बड़ा हॉल दुकान के लिए',
+  'गोडाउन',
+  'मल्टी फ्लोर गोडाउन',
+  'मल्टी मे फ्लेट',
+  'टावर मे फ्लेट',
+  'दुकान (Shop)',
+  'कमर्शियल स्पेस',
+] as const;
+
+export const FLOOR_OPTIONS = [
+  'ग्राउंड फ्लोर',
+  '1st फ्लोर',
+  '2nd फ्लोर',
+  '3rd फ्लोर',
+  'स्वतंत्र मकान (सेपरेट)',
+  'ग्राउंड फ्लोर शटर',
+  'मल्टी फ्लोर',
+] as const;
+
+export type PropertyConfig =
+  | (typeof PROPERTY_CONFIG_OPTIONS)[number]
   | '1R'
   | '1RK'
-  | '1BHK'
-  | '2BHK'
-  | '3BHK'
-  | '4BHK'
-  | '1st फ्लोर'
-  | '2nd फ्लोर'
-  | 'दुकान (Shop)'
-  | 'कमर्शियल स्पेस';
+  | 'पूरा मकान सेपरेट';
 
 export interface PosterAd {
   imageUrl: string; // Base64 data URI (2:1 landscape banner ratio)

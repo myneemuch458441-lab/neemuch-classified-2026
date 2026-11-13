@@ -19,9 +19,19 @@ import {
   Layers,
   FileText,
   Share2,
-  Camera
+  Camera,
+  Edit3,
+  Plus,
+  IndianRupee,
+  Hash
 } from 'lucide-react';
-import { Property, PropertyConfig, ListingCategory } from '../types/property';
+import {
+  Property,
+  PropertyConfig,
+  ListingCategory,
+  PROPERTY_CONFIG_OPTIONS,
+  FLOOR_OPTIONS
+} from '../types/property';
 import { NEEMUCH_COLONIES } from '../data/seedProperties';
 import { parsePastedAdText, SAMPLE_USER_AD, ParsedAdResult } from '../utils/adTextParser';
 import { HousePhotosUploader } from './HousePhotosUploader';
@@ -128,14 +138,26 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
   // Tab Mode: 'quick_paste' (Default - No Form!) or 'detailed_form'
   const [activeTab, setActiveTab] = useState<'quick_paste' | 'detailed_form'>('quick_paste');
 
-  // Quick Paste States
+  // Quick Paste States (All auto-detected fields are editable before final submit)
   const [pastedText, setPastedText] = useState('');
-  const [overridePhone, setOverridePhone] = useState('');
-  const [overrideColony, setOverrideColony] = useState('');
+  const [qpCategory, setQpCategory] = useState<ListingCategory>('मकान किराए हेतु');
+  const [qpAdPurpose, setQpAdPurpose] = useState<string>('मकान किराए से देना है (मकान मालिक)');
+  const [qpConfig, setQpConfig] = useState<string>('एक कमरा');
+  const [qpCustomConfig, setQpCustomConfig] = useState<string>('');
+  const [qpFloor, setQpFloor] = useState<string>('ग्राउंड फ्लोर');
+  const [qpColony, setQpColony] = useState<string>('');
+  const [qpLandmark, setQpLandmark] = useState<string>('');
+  const [qpPhone, setQpPhone] = useState<string>('');
+  const [qpRent, setQpRent] = useState<string>('');
+  const [qpHouseNumber, setQpHouseNumber] = useState<string>('');
+  const [qpFeatures, setQpFeatures] = useState<string[]>([]);
+  const [qpNewFeatureInput, setQpNewFeatureInput] = useState<string>('');
+  const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
 
   // Sync initialAdText when provided
   useEffect(() => {
     if (isOpen && initialAdText) {
+      setDirtyFields({});
       setPastedText(initialAdText);
       setActiveTab('quick_paste');
     }
@@ -149,6 +171,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
   const [customColony, setCustomColony] = useState('');
   const [houseNumber, setHouseNumber] = useState('');
   const [config, setConfig] = useState<PropertyConfig | string>('2BHK');
+  const [customDetailConfig, setCustomDetailConfig] = useState('');
   const [floor, setFloor] = useState('ग्राउंड फ्लोर');
   const [rent, setRent] = useState<number | ''>('');
   const [contactNumber, setContactNumber] = useState('');
@@ -174,19 +197,66 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     return parsePastedAdText(pastedText);
   }, [pastedText]);
 
-  // Sync override phone if detected from text
+  const allQuickSelectConfigs = useMemo(
+    () => [...PROPERTY_CONFIG_OPTIONS, 'पूरा मकान सेपरेट'] as string[],
+    []
+  );
+
+  // Sync unedited fields from live AI/text auto-detection
   useEffect(() => {
-    if (parsedAd.contactNumber && !overridePhone) {
-      setOverridePhone(parsedAd.contactNumber.replace('+91-', ''));
+    if (!dirtyFields.category) {
+      setQpCategory(parsedAd.category);
     }
-  }, [parsedAd.contactNumber]);
+    if (!dirtyFields.adPurpose) {
+      setQpAdPurpose(parsedAd.adPurpose);
+    }
+    if (!dirtyFields.config) {
+      if (allQuickSelectConfigs.includes(parsedAd.config)) {
+        setQpConfig(parsedAd.config);
+        setQpCustomConfig('');
+      } else {
+        setQpConfig('__custom__');
+        setQpCustomConfig(parsedAd.config);
+      }
+    }
+    if (!dirtyFields.floor) {
+      setQpFloor(parsedAd.floor);
+    }
+    if (!dirtyFields.colony) {
+      setQpColony(parsedAd.colony);
+    }
+    if (!dirtyFields.landmark) {
+      setQpLandmark(parsedAd.landmark);
+    }
+    if (!dirtyFields.phone) {
+      setQpPhone(parsedAd.contactNumber ? parsedAd.contactNumber.replace('+91-', '') : '');
+    }
+    if (!dirtyFields.rent) {
+      setQpRent(parsedAd.rent > 0 ? String(parsedAd.rent) : '');
+    }
+    if (!dirtyFields.houseNumber) {
+      setQpHouseNumber(parsedAd.houseNumber || '');
+    }
+    if (!dirtyFields.features) {
+      setQpFeatures(parsedAd.features);
+    }
+  }, [parsedAd, dirtyFields, allQuickSelectConfigs]);
 
   if (!isOpen) return null;
 
+  const markDirty = (field: string) => {
+    setDirtyFields((prev) => ({ ...prev, [field]: true }));
+  };
+
+  // Re-detect all fields from pasted text (resets manual overrides)
+  const handleRedetectFromText = () => {
+    setDirtyFields({});
+  };
+
   // Handle Loading Demo Template
   const handleLoadSample = () => {
+    setDirtyFields({});
     setPastedText(SAMPLE_USER_AD);
-    setOverridePhone('1234567890');
     setErrorMsg('');
   };
 
@@ -196,6 +266,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       if (navigator.clipboard && navigator.clipboard.readText) {
         const text = await navigator.clipboard.readText();
         if (text) {
+          setDirtyFields({});
           setPastedText(text);
           setErrorMsg('');
         }
@@ -205,7 +276,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     }
   };
 
-  // Quick Paste Submit Handler
+  // Quick Paste Submit Handler (uses user-edited box values!)
   const handleQuickPasteSubmit = async () => {
     setErrorMsg('');
 
@@ -215,8 +286,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       return;
     }
 
-    // Determine contact number: from override field or parsed text
-    const finalPhone = (overridePhone.trim() || parsedAd.contactNumber || '').replace(/[^0-9]/g, '');
+    const finalPhone = (qpPhone.trim() || parsedAd.contactNumber || '').replace(/[^0-9]/g, '');
     if (!finalPhone || finalPhone.length < 10) {
       setErrorMsg('कृपया अपना 10 अंकों का संपर्क मोबाइल नंबर दर्ज करें ताकि लोग आपसे बात कर सकें।');
       return;
@@ -224,18 +294,40 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
 
     const cleanContact = `+91-${finalPhone.slice(-10)}`;
     const cleanWa = `91${finalPhone.slice(-10)}`;
-    const finalColony = overrideColony.trim() || parsedAd.colony || 'नीमच शहर (Neemuch City)';
+    const finalColony = qpColony.trim() || parsedAd.colony || 'नीमच शहर (Neemuch City)';
+    const resolvedConfig = (qpConfig === '__custom__' ? qpCustomConfig.trim() : qpConfig.trim()) || 'एक कमरा';
+    const finalConfig = resolvedConfig.slice(0, 28);
+    const finalFloor = qpFloor.trim() || 'ग्राउंड फ्लोर';
+    const finalLandmark = qpLandmark.trim();
+
+    const activePurposes = AD_PURPOSE_OPTIONS[qpCategory] || [];
+    const matchedPurposeObj = activePurposes.find((p) => p.label === qpAdPurpose);
+    const isFinalSeeker = matchedPurposeObj ? matchedPurposeObj.role === 'seeker' : parsedAd.isSeeker;
+
+    const finalHouseNumber =
+      qpHouseNumber.trim() ||
+      (isFinalSeeker ? 'किराएदार (वांछित)' : qpCategory === 'दुकान' ? 'दुकान' : 'H.N. -');
+
+    const numericRent = Number(qpRent);
+    const finalRent = !Number.isNaN(numericRent) && numericRent > 0 ? numericRent : 0;
+
+    let finalPriceType = 'प्रति माह';
+    if (qpCategory === 'गिरवी मकान') finalPriceType = 'गिरवी राशि';
+    else if (qpCategory === 'मकान बेचना है') finalPriceType = 'बिक्री मूल्य';
+
+    const shortArea = finalColony.split('(')[0].trim() || finalColony;
+    const generatedTitle = `[${qpAdPurpose.split('(')[0].trim()}] ${finalConfig} - ${shortArea}`.slice(0, 140);
 
     const propertyPayload: Omit<Property, 'id'> = {
-      title: parsedAd.title || `[${parsedAd.adPurpose.split('(')[0]}] ${parsedAd.config} - ${finalColony.split(' ')[0]}`,
-      listingCategory: parsedAd.category,
-      adPurpose: parsedAd.adPurpose,
+      title: generatedTitle,
+      listingCategory: qpCategory,
+      adPurpose: qpAdPurpose,
       colony: finalColony,
-      houseNumber: parsedAd.houseNumber || (parsedAd.isSeeker ? 'किराएदार (वांछित)' : 'H.N. -'),
-      config: parsedAd.config.slice(0, 28) || '2BHK',
-      floor: parsedAd.floor || 'ग्राउंड फ्लोर',
-      rent: parsedAd.rent || 0,
-      priceType: parsedAd.priceType || 'प्रति माह',
+      houseNumber: finalHouseNumber,
+      config: finalConfig,
+      floor: finalFloor,
+      rent: finalRent,
+      priceType: finalPriceType,
       contactNumber: cleanContact,
       whatsappNumber: cleanWa,
       description: raw, // Full verbatim original text as typed by user
@@ -246,13 +338,13 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       aiTags: [
         'पब्लिक विज्ञापन',
         'क्विक पेस्ट',
-        parsedAd.category,
-        parsedAd.adPurpose,
-        parsedAd.isSeeker ? 'किराएदार / खरीदार' : 'मालिक',
-        finalColony.split(' ')[0]
+        qpCategory,
+        qpAdPurpose,
+        isFinalSeeker ? 'किराएदार / खरीदार' : 'मालिक',
+        shortArea.split(' ')[0]
       ],
-      features: parsedAd.features.length > 0 ? parsedAd.features : ['बिजली-पानी व्यवस्था'],
-      landmark: parsedAd.landmark,
+      features: qpFeatures.length > 0 ? qpFeatures : ['बिजली-पानी व्यवस्था'],
+      landmark: finalLandmark,
       available: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -328,9 +420,15 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     if (listingCategory === 'गिरवी मकान') priceType = 'गिरवी राशि';
     else if (listingCategory === 'मकान बेचना है') priceType = 'बिक्री मूल्य';
 
+    const resolvedDetailConfig = (
+      config === '__custom__'
+        ? customDetailConfig.trim()
+        : config
+    ) || (listingCategory === 'दुकान' ? 'दुकान ग्राउंड फ्लोर' : '2BHK');
+
     const finalTitle =
       title.trim() ||
-      `[${adPurpose.split('(')[0].trim()}] ${config} - ${finalColony.split(' ')[0]} ${houseNumber ? `(${houseNumber})` : ''}`.trim();
+      `[${adPurpose.split('(')[0].trim()}] ${resolvedDetailConfig} - ${finalColony.split(' ')[0]} ${houseNumber ? `(${houseNumber})` : ''}`.trim();
 
     const rentNumber = typeof rent === 'number' && rent > 0 ? rent : 0;
 
@@ -340,7 +438,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       adPurpose: adPurpose,
       colony: finalColony,
       houseNumber: houseNumber.trim() || (isSeeker ? 'किराएदार / वांछित क्षेत्र' : listingCategory === 'दुकान' ? 'दुकान' : 'H.N. -'),
-      config: (config || (listingCategory === 'दुकान' ? 'दुकान (Shop)' : '2BHK')).slice(0, 28),
+      config: resolvedDetailConfig.slice(0, 28),
       floor: floor || 'ग्राउंड फ्लोर',
       rent: rentNumber,
       priceType: priceType,
@@ -536,8 +634,8 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        setDirtyFields({});
                         setPastedText('');
-                        setOverridePhone('');
                         setErrorMsg('');
                       }}
                       className="px-2 py-1 rounded-lg text-slate-400 hover:text-rose-300 text-[11px] font-semibold transition-colors cursor-pointer"
@@ -556,125 +654,337 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                     setPastedText(e.target.value);
                     if (errorMsg) setErrorMsg('');
                   }}
-                  rows={9}
-                  placeholder={`यहाँ अपना विज्ञापन पेस्ट करें... जैसे:\n\nनीमच म. प्र.\nमकान किराए से चाहिए \n1room /1 room+kitchen /2 room + kitchen / 1BHK / 2BHK / 3BHK / 4 BHK / पूरा मकान सेपरेट \nलोकेशन :- टीचर कालोनी  LIC चौराहे के आस पास,\nसम्पर्क :- 1234567890\nअन्य सुविधाए :- अगर कुछ और चाहिए तो जैसे कार पार्किंग, बाइक पार्किंग, टेरिस, 24 ऑवर वाटर, सेपरेट इलेक्ट्रिक मीटर, पालतू जानवर डॉग/ कैट भी हे, सीसीटीवी चाहिए,`}
+                  rows={8}
+                  placeholder={`यहाँ अपना विज्ञापन पेस्ट करें... जैसे:\n\nनीमच म. प्र.\nमकान किराए से देना है \nएक हॉल अटैच किचन लेट्रिन-बाथ फर्नीचर सहित \nलोकेशन :- भगवानपुरा चौराहा,\nसम्पर्क :- 99260XXXXX`}
                   className="w-full p-3.5 sm:p-4 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 text-white placeholder-slate-500 text-xs sm:text-sm leading-relaxed outline-none transition-all resize-y shadow-inner font-sans"
                 />
               </div>
 
-              {/* Real-Time Live Extraction Card */}
-              {pastedText.trim().length > 10 && (
-                <div className="p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/30 space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                    <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      <span>विज्ञापन स्वतः विश्लेषण (Live Auto-Detection):</span>
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      सिस्टम द्वारा तैयार
-                    </span>
+              {/* Real-Time Live Extraction Card - ALL BOXES DIRECTLY EDITABLE */}
+              {pastedText.trim().length > 5 && (
+                <div className="p-4 rounded-2xl bg-slate-950/95 border border-emerald-500/40 space-y-3.5 animate-in fade-in duration-200 shadow-lg">
+                  <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-800 pb-2.5">
+                    <div>
+                      <span className="text-xs sm:text-sm font-extrabold text-emerald-400 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                        <span>विज्ञापन स्वतः विश्लेषण (Live Auto-Detection — जांचें व एडिट करें):</span>
+                      </span>
+                      <p className="text-[11px] text-amber-300/90 mt-0.5 flex items-center gap-1">
+                        <Edit3 className="w-3 h-3 shrink-0" />
+                        <span>अगर AI द्वारा कोई जानकारी गलत भरी गई हो, तो नीचे किसी भी बॉक्स में सीधे बदलकर ही सबमिट करें।</span>
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRedetectFromText}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                      title="टेक्स्ट से सभी बॉक्स पुनः स्वतः भरें"
+                    >
+                      <RotateCcw className="w-3 h-3 text-emerald-400" />
+                      <span>पुनः ऑटो-भरें</span>
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                    {/* Category & Purpose */}
-                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-semibold">विज्ञापन प्रकार:</span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border ${
-                        parsedAd.isSeeker
-                          ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                      }`}>
-                        {parsedAd.adPurpose}
-                      </span>
-                    </div>
-
-                    {/* Requirement & Configuration */}
-                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-semibold">कमरे / कॉन्फ़िगरेशन:</span>
-                      <span className="font-extrabold text-white text-xs block">
-                        {parsedAd.config} ({parsedAd.floor})
-                      </span>
-                    </div>
-
-                    {/* Location & Colony */}
-                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-semibold">लोकेशन / स्थान:</span>
-                      <div className="flex items-center gap-1 text-rose-300 font-bold text-xs truncate">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{overrideColony || parsedAd.colony}</span>
+                  {/* Editable Boxes Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {/* Box 1: विज्ञापन प्रकार (Category & Ad Purpose - Editable) */}
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                          <Edit3 className="w-3 h-3 text-amber-400" />
+                          <span>विज्ञापन श्रेणी व प्रकार:</span>
+                        </label>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          एडिट योग्य
+                        </span>
                       </div>
-                      {parsedAd.landmark && (
-                        <span className="text-[10px] text-slate-400 block truncate">
-                          आस पास / पता: {parsedAd.landmark}
-                        </span>
-                      )}
+                      <select
+                        value={qpCategory}
+                        onChange={(e) => {
+                          const newCat = e.target.value as ListingCategory;
+                          setQpCategory(newCat);
+                          markDirty('category');
+                          const opts = AD_PURPOSE_OPTIONS[newCat] || [];
+                          if (opts.length > 0) {
+                            setQpAdPurpose(opts[0].label);
+                            markDirty('adPurpose');
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-amber-300 font-bold text-xs outline-none"
+                      >
+                        <option value="मकान किराए हेतु">मकान किराए हेतु</option>
+                        <option value="गिरवी मकान">गिरवी मकान</option>
+                        <option value="दुकान">दुकान (Shop / गोडाउन / ऑफिस)</option>
+                        <option value="मकान बेचना है">मकान बेचना है</option>
+                      </select>
+
+                      <select
+                        value={qpAdPurpose}
+                        onChange={(e) => {
+                          setQpAdPurpose(e.target.value);
+                          markDirty('adPurpose');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-cyan-300 font-semibold text-xs outline-none"
+                      >
+                        {(AD_PURPOSE_OPTIONS[qpCategory] || []).map((opt) => (
+                          <option key={opt.label} value={opt.label}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Contact Phone Number */}
-                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-semibold">संपर्क नंबर (Mobile):</span>
-                      {parsedAd.contactNumber || overridePhone ? (
-                        <div className="flex items-center gap-1 text-emerald-400 font-black text-xs font-mono">
-                          <Phone className="w-3.5 h-3.5 shrink-0" />
-                          <span>{overridePhone ? `+91-${overridePhone}` : parsedAd.contactNumber}</span>
-                        </div>
-                      ) : (
-                        <span className="text-amber-400 text-[11px] font-bold flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 text-amber-400" />
-                          नंबर नीचे बॉक्स में दर्ज करें
+                    {/* Box 2: कमरे / कॉन्फ़िगरेशन व फ्लोर (Config & Floor - Editable) */}
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                          <Edit3 className="w-3 h-3 text-emerald-400" />
+                          <span>कमरे / कॉन्फ़िगरेशन व फ्लोर:</span>
+                        </label>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          एडिट योग्य
                         </span>
+                      </div>
+
+                      <select
+                        value={qpConfig}
+                        onChange={(e) => {
+                          setQpConfig(e.target.value);
+                          markDirty('config');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-400 text-white font-bold text-xs outline-none"
+                      >
+                        {PROPERTY_CONFIG_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                        <option value="पूरा मकान सेपरेट">पूरा मकान सेपरेट</option>
+                        <option value="__custom__">अन्य (खुद टाइप करें)...</option>
+                      </select>
+
+                      {qpConfig === '__custom__' && (
+                        <input
+                          type="text"
+                          maxLength={28}
+                          value={qpCustomConfig}
+                          onChange={(e) => {
+                            setQpCustomConfig(e.target.value);
+                            markDirty('config');
+                          }}
+                          placeholder="जैसे: एक हॉल अटैच किचन"
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-amber-500/50 text-white text-xs outline-none"
+                        />
                       )}
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 shrink-0">फ्लोर:</span>
+                        <input
+                          type="text"
+                          list="qp-floor-options"
+                          value={qpFloor}
+                          onChange={(e) => {
+                            setQpFloor(e.target.value);
+                            markDirty('floor');
+                          }}
+                          placeholder="उदा: ग्राउंड फ्लोर, 1st फ्लोर"
+                          className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-400 text-slate-200 text-xs outline-none"
+                        />
+                        <datalist id="qp-floor-options">
+                          {FLOOR_OPTIONS.map((f) => (
+                            <option key={f} value={f} />
+                          ))}
+                        </datalist>
+                      </div>
+                    </div>
+
+                    {/* Box 3: लोकेशन / कॉलोनी व लैंडमार्क (Location & Landmark - Editable) */}
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-rose-400" />
+                          <span>लोकेशन / कॉलोनी व पहचान:</span>
+                        </label>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                          एडिट योग्य
+                        </span>
+                      </div>
+
+                      <input
+                        type="text"
+                        list="qp-colony-options"
+                        value={qpColony}
+                        onChange={(e) => {
+                          setQpColony(e.target.value);
+                          markDirty('colony');
+                        }}
+                        placeholder="कॉलोनी / क्षेत्र लिखें या चुनें"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-rose-200 font-semibold text-xs outline-none"
+                      />
+                      <datalist id="qp-colony-options">
+                        {NEEMUCH_COLONIES.map((c) => (
+                          <option key={c} value={c} />
+                        ))}
+                      </datalist>
+
+                      <input
+                        type="text"
+                        value={qpLandmark}
+                        onChange={(e) => {
+                          setQpLandmark(e.target.value);
+                          markDirty('landmark');
+                        }}
+                        placeholder="आस-पास / पता (उदा: ट्रीनिटी हॉस्टल के पीछे)"
+                        className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-300 text-xs outline-none"
+                      />
+                    </div>
+
+                    {/* Box 4: संपर्क नंबर, किराया व मकान/दुकान नं. (Phone, Rent, House No. - Editable) */}
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-emerald-400" />
+                          <span>मोबाइल नंबर, किराया व नं.:</span>
+                        </label>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          एडिट योग्य
+                        </span>
+                      </div>
+
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={qpPhone}
+                        onChange={(e) => {
+                          setQpPhone(e.target.value.replace(/[^0-9]/g, ''));
+                          markDirty('phone');
+                        }}
+                        placeholder="10 अंकों का मोबाइल नंबर *"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-400 text-emerald-400 font-black font-mono text-xs outline-none"
+                      />
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="relative">
+                          <IndianRupee className="w-3 h-3 text-amber-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="number"
+                            value={qpRent}
+                            onChange={(e) => {
+                              setQpRent(e.target.value);
+                              markDirty('rent');
+                            }}
+                            placeholder="किराया/बजट (₹)"
+                            className="w-full pl-6 pr-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-200 text-xs outline-none"
+                          />
+                        </div>
+
+                        <div className="relative">
+                          <Hash className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={qpHouseNumber}
+                            onChange={(e) => {
+                              setQpHouseNumber(e.target.value);
+                              markDirty('houseNumber');
+                            }}
+                            placeholder="मकान/दुकान नं."
+                            className="w-full pl-6 pr-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-200 text-xs outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Amenities Badges detected */}
-                  {parsedAd.features.length > 0 && (
-                    <div className="pt-1 space-y-1.5">
-                      <span className="text-[10px] text-slate-400 font-semibold block">पहचानी गई सुविधाएं ({parsedAd.features.length}):</span>
+                  {/* Box 5: पहचानी गई / चयनित सुविधाएं (Editable Amenities Tags) */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                        <Edit3 className="w-3 h-3 text-cyan-400" />
+                        <span>सुविधाएं (पहचानी गई / एडिट करें — {qpFeatures.length}):</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400">हटाने के लिए × दबाएं या नई जोड़ें</span>
+                    </div>
+
+                    {qpFeatures.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {parsedAd.features.map((feat, idx) => (
+                        {qpFeatures.map((feat, idx) => (
                           <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900 text-slate-200 border border-slate-800 text-[11px] font-medium"
+                            key={`${feat}-${idx}`}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-950 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium"
                           >
-                            <Check className="w-3 h-3 text-emerald-400" />
+                            <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                             <span>{feat}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQpFeatures(qpFeatures.filter((_, i) => i !== idx));
+                                markDirty('features');
+                              }}
+                              className="ml-0.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                              title="सुविधा हटाएं"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </span>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Quick verification inputs for Location and Phone */}
-                  <div className="pt-2 border-t border-slate-800 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div className="space-y-1">
-                        <label className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-rose-400" />
-                          <span>लोकेशन / कॉलोनी (जांचें या बदलें):</span>
-                        </label>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val && !qpFeatures.includes(val)) {
+                            setQpFeatures([...qpFeatures, val]);
+                            markDirty('features');
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-slate-300 text-[11px] outline-none"
+                      >
+                        <option value="">+ सूची से सुविधा जोड़ें...</option>
+                        {COMMON_FEATURES.filter((f) => !qpFeatures.includes(f)).map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex items-center gap-1 flex-1 min-w-[160px]">
                         <input
                           type="text"
-                          value={overrideColony || parsedAd.colony}
-                          onChange={(e) => setOverrideColony(e.target.value)}
-                          placeholder="उदा: शक्ति नगर विस्तार, विकास नगर"
-                          className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:border-amber-400 focus:outline-none"
+                          value={qpNewFeatureInput}
+                          onChange={(e) => setQpNewFeatureInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = qpNewFeatureInput.trim();
+                              if (val && !qpFeatures.includes(val)) {
+                                setQpFeatures([...qpFeatures, val]);
+                                setQpNewFeatureInput('');
+                                markDirty('features');
+                              }
+                            }
+                          }}
+                          placeholder="कोई अन्य सुविधा लिखें..."
+                          className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-white text-[11px] outline-none"
                         />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-emerald-400" />
-                          <span>मोबाइल नंबर (जांचें या बदलें):</span>
-                        </label>
-                        <input
-                          type="tel"
-                          maxLength={10}
-                          value={overridePhone}
-                          onChange={(e) => setOverridePhone(e.target.value.replace(/[^0-9]/g, ''))}
-                          placeholder="10 अंकों का मोबाइल नंबर"
-                          className="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-amber-400 focus:outline-none"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const val = qpNewFeatureInput.trim();
+                            if (val && !qpFeatures.includes(val)) {
+                              setQpFeatures([...qpFeatures, val]);
+                              setQpNewFeatureInput('');
+                              markDirty('features');
+                            }
+                          }}
+                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>जोड़ें</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -816,18 +1126,41 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                 </div>
               </div>
 
-              {/* Config & Rent */}
+              {/* Config & Floor & Rent */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-300">कमरे / कॉन्फ़िगरेशन:</label>
-                  <input
-                    type="text"
-                    maxLength={28}
-                    value={config}
-                    onChange={(e) => setConfig(e.target.value)}
-                    placeholder="उदा: 2BHK, 1 room+kitchen"
+                  <select
+                    value={allQuickSelectConfigs.includes(String(config)) ? String(config) : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setCustomDetailConfig(String(config));
+                        setConfig('__custom__');
+                      } else {
+                        setConfig(e.target.value);
+                        setCustomDetailConfig('');
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none"
-                  />
+                  >
+                    {PROPERTY_CONFIG_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                    <option value="पूरा मकान सेपरेट">पूरा मकान सेपरेट</option>
+                    <option value="__custom__">अन्य (खुद लिखें)...</option>
+                  </select>
+                  {config === '__custom__' && (
+                    <input
+                      type="text"
+                      maxLength={28}
+                      value={customDetailConfig}
+                      onChange={(e) => setCustomDetailConfig(e.target.value)}
+                      placeholder="उदा: एक हॉल अटैच किचन"
+                      className="w-full mt-1.5 px-3 py-2 rounded-xl bg-slate-950 border border-amber-500/40 text-white text-xs outline-none"
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-1">

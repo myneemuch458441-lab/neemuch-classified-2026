@@ -15,7 +15,7 @@ import {
   Key,
   Camera
 } from 'lucide-react';
-import { Property, PropertyConfig, ListingCategory } from '../types/property';
+import { Property, PropertyConfig, ListingCategory, PROPERTY_CONFIG_OPTIONS } from '../types/property';
 import { NEEMUCH_COLONIES } from '../data/seedProperties';
 import { HousePhotosUploader } from './HousePhotosUploader';
 
@@ -335,25 +335,21 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
                 onChange={(e) => setConfig(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-emerald-500 text-white text-sm outline-none"
               >
-                {listingCategory === 'दुकान' ? (
-                  <>
-                    <option value="दुकान (Shop)">दुकान (Retail Shop)</option>
-                    <option value="कमर्शियल स्पेस">कमर्शियल स्पेस (Commercial Space)</option>
-                    <option value="गोदाम / वेयरहाउस">गोदाम / वेयरहाउस (Godown)</option>
-                    <option value="ऑफिस स्पेस">ऑफिस स्पेस (Office Space)</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="1R">1R (सिंगल रूम)</option>
-                    <option value="1RK">1RK (कमरा + किचन)</option>
-                    <option value="1BHK">1BHK (हॉल, बेडरूम, किचन)</option>
-                    <option value="2BHK">2BHK (2 बेडरूम, हॉल, किचन)</option>
-                    <option value="3BHK">3BHK (3 बेडरूम विथ हॉल)</option>
-                    <option value="4BHK">4BHK (लक्ज़री विला / डुप्लेक्स)</option>
-                    <option value="1st फ्लोर">1st फ्लोर</option>
-                    <option value="2nd फ्लोर">2nd फ्लोर</option>
-                  </>
-                )}
+                {PROPERTY_CONFIG_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+                <option value="पूरा मकान सेपरेट">पूरा मकान सेपरेट</option>
+                <option value="1R">1R (सिंगल रूम)</option>
+                <option value="1RK">1RK (कमरा + किचन)</option>
+                {!PROPERTY_CONFIG_OPTIONS.includes(config as any) &&
+                  config !== 'पूरा मकान सेपरेट' &&
+                  config !== '1R' &&
+                  config !== '1RK' &&
+                  config && (
+                    <option value={config}>{config}</option>
+                  )}
               </select>
             </div>
           </div>

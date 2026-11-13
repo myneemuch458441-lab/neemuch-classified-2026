@@ -16,20 +16,11 @@ import {
   Building
 } from 'lucide-react';
 import { NEEMUCH_COLONIES, LISTING_CATEGORIES } from '../data/seedProperties';
-import { PropertyConfig, ListingCategory } from '../types/property';
+import { PropertyConfig, ListingCategory, PROPERTY_CONFIG_OPTIONS } from '../types/property';
 
 export const CONFIG_OPTIONS: (PropertyConfig | 'All')[] = [
   'All',
-  '1R',
-  '1RK',
-  '1BHK',
-  '2BHK',
-  '3BHK',
-  '4BHK',
-  '1st फ्लोर',
-  '2nd फ्लोर',
-  'दुकान (Shop)',
-  'कमर्शियल स्पेस',
+  ...PROPERTY_CONFIG_OPTIONS,
 ];
 
 export type AvailabilityFilterType = 'all' | 'available' | 'booked';
@@ -274,18 +265,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </div>
         </div>
 
-        {/* Configuration Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+        {/* Configuration Pills - Wrapped grid so all options are visible and clickable */}
+        <div className="flex flex-wrap items-center gap-1.5">
           {CONFIG_OPTIONS.map((cfg) => {
             const isSelected = selectedConfig === cfg;
             return (
               <button
                 key={cfg}
                 onClick={() => onConfigChange(cfg)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all border ${
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all border cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-md shadow-emerald-500/20 scale-[1.02]'
-                    : 'bg-slate-950/80 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700'
+                    : 'bg-slate-950/80 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700 hover:bg-slate-900'
                 }`}
               >
                 {cfg === 'All' ? 'सभी कॉन्फ़िग' : cfg}

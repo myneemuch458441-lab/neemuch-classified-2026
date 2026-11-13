@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Property, PropertyConfig, ListingCategory, PosterAd } from './types/property';
 import { NEEMUCH_COLONIES, LISTING_CATEGORIES } from './data/seedProperties';
+import { matchesConfigFilter } from './utils/adTextParser';
 import {
   subscribeToProperties,
   addProperty,
@@ -187,11 +188,9 @@ export default function App() {
         }
       }
 
-      // Configuration Filter
+      // Configuration Filter (smart matching across config, floor, title & description)
       if (selectedConfig !== 'All') {
-        const itemConfig = item.config?.toLowerCase();
-        const targetConfig = selectedConfig.toLowerCase();
-        if (itemConfig !== targetConfig && !item.floor?.toLowerCase().includes(targetConfig)) {
+        if (!matchesConfigFilter(item, selectedConfig)) {
           return false;
         }
       }

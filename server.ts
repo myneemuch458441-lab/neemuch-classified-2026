@@ -139,8 +139,8 @@ STRICT DATA EXTRACTION RULES:
 - "houseNumber": Extract the house, shop or plot number if written (e.g. "H.N. 42", "Plot 115", "दुकान नं. 4"). If not visible, return "".
 - "colony": Detect the Neemuch colony/area from the photo (e.g. Vikas Nagar, Tagore Nagar, Baghana, Cantt, Jain Colony, Scheme 36, etc.). If none mentioned, return "नीमच शहर".
 - "contactNumber": Extract any 10-digit Indian phone number written on the board (e.g. 7999646575, 98260XXXXX). If not visible, return "+91-7999646575".
-- "config": Detect configuration like "1R", "1RK", "1BHK", "2BHK", "3BHK", "4BHK", "दुकान (Shop)", "कमर्शियल स्पेस".
-- "floor": e.g. "ग्राउंड फ्लोर", "1st फ्लोर", "शटर"
+- "config": Detect configuration accurately from these exact options when possible: "एक कमरा", "एक कमरा किचन", "एक हॉल", "एक हॉल अटैच किचन", "2 कमरे किचन", "3 कमरे किचन", "4 कमरे किचन", "1BHK", "2BHK", "3BHK", "4BHK", "5BHK", "ग्राउंड फ्लोर", "1st फ्लोर", "2nd फ्लोर", "3rd फ्लोर", "ऑफिस स्पेस", "दुकान ग्राउंड फ्लोर", "दुकान 1st फ्लोर", "बड़ा हॉल दुकान के लिए", "गोडाउन", "मल्टी फ्लोर गोडाउन", "मल्टी मे फ्लेट", "टावर मे फ्लेट", "दुकान (Shop)", "कमर्शियल स्पेस". Do NOT mark "एक हॉल अटैच किचन" as 2BHK.
+- "floor": e.g. "ग्राउंड फ्लोर", "1st फ्लोर", "2nd फ्लोर", "3rd फ्लोर", "ग्राउंड फ्लोर शटर", "मल्टी फ्लोर"
 - "title": Short catchy title in Hindi e.g. "2BHK स्वतंत्र मकान किराए पर, विकास नगर"
 - "description": Helpful Hindi description mentioning features seen in the photo.
 - "detectedFeatures": Array of amenities/features found (e.g. ["कार पार्किंग", "24 घंटे पानी", "रोलिंग शटर", "सेपरेट मीटर"]).
