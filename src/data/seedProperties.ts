@@ -21,14 +21,16 @@ export const NEEMUCH_COLONIES = [
   'राम नगर (Ram Nagar)',
   'इंदिरा नगर (Indira Nagar)',
   'नीमच सिटी (Neemuch City)',
-  'कनावटी रोड (Kanawati Road)'
+  'कनावटी रोड (Kanawati Road)',
+  'गोकुल धाम कॉलोनी (Gokul Dham)'
 ];
 
 export const LISTING_CATEGORIES: ListingCategory[] = [
   'मकान किराए हेतु',
   'गिरवी मकान',
   'दुकान',
-  'मकान बेचना है'
+  'मकान बेचना है',
+  'मकान खरीदना है'
 ];
 
 export const INITIAL_NEEMUCH_PROPERTIES: Omit<Property, 'id'>[] = [

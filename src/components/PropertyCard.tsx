@@ -46,7 +46,14 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   onRequestDeletePoster,
   onViewPhotos,
 }) => {
-  const category: ListingCategory = property.listingCategory || 'मकान किराए हेतु';
+  const rawCategory: ListingCategory = property.listingCategory || 'मकान किराए हेतु';
+  const isBuyerAd =
+    rawCategory === 'मकान खरीदना है' ||
+    Boolean(property.adPurpose?.includes('खरीदना')) ||
+    Boolean(property.title?.includes('खरीदना')) ||
+    Boolean(rawCategory === 'मकान बेचना है' && property.description?.includes('खरीदना'));
+  const category: ListingCategory = isBuyerAd ? 'मकान खरीदना है' : rawCategory;
+
   const isBooked =
     property.available === false ||
     String(property.available).toLowerCase() === 'false' ||
@@ -86,10 +93,17 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     );
   }, [property.landmark, property.houseNumber, property.contactNumber, property.whatsappNumber, isBooked]);
 
-  const hasValidPrice = Boolean(property.rent && property.rent > 0);
+  const hasDisplayPrice = Boolean(property.priceDisplay && property.priceDisplay.trim());
+  const hasValidPrice = hasDisplayPrice || Boolean(property.rent && property.rent > 0);
 
   const formatPrice = (val?: number) => {
-    if (!val || val <= 0) return 'रेंट की जानकारी उपलब्ध नहीं है';
+    if (hasDisplayPrice) return property.priceDisplay!.trim();
+    if (!val || val <= 0) {
+      if (category === 'मकान खरीदना है') return 'बजट: बातचीत अनुसार';
+      if (category === 'मकान बेचना है') return 'मूल्य: बातचीत अनुसार';
+      if (category === 'गिरवी मकान') return 'गिरवी राशि: बातचीत अनुसार';
+      return 'रेंट की जानकारी उपलब्ध नहीं है';
+    }
     if (val >= 100000) {
       const inLakhs = val / 100000;
       return `₹${inLakhs % 1 === 0 ? inLakhs : inLakhs.toFixed(2)} लाख`;
@@ -99,6 +113,10 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
   const getPriceLabel = () => {
     if (!hasValidPrice) return '(बातचीत अनुसार)';
+    if (category === 'मकान खरीदना है') {
+      if (property.priceType && property.priceType !== 'बिक्री मूल्य') return property.priceType;
+      return 'बजट';
+    }
     if (property.priceType) return property.priceType;
     if (category === 'गिरवी मकान') return 'गिरवी राशि';
     if (category === 'मकान बेचना है') return 'बिक्री मूल्य';
@@ -115,18 +133,19 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     if (category === 'दुकान') itemType = 'दुकान';
     else if (category === 'गिरवी मकान') itemType = 'गिरवी मकान';
     else if (category === 'मकान बेचना है') itemType = 'बिक्री का मकान';
+    else if (category === 'मकान खरीदना है') itemType = 'प्रॉपर्टी खरीदने की आवश्यकता';
 
     const priceText = hasValidPrice
       ? `${getPriceLabel()}: ${formatPrice(property.rent)}`
-      : 'रेंट की जानकारी उपलब्ध नहीं है (बातचीत अनुसार)';
+      : `${formatPrice(0)} (बातचीत अनुसार)`;
 
     const message = `नमस्ते! मैंने नीमच क्लासिफाइड (Neemuch Classified) पर आपका [${category}] देखा है:
 📍 नंबर/पहचान: ${property.houseNumber || 'H.N.'}
 🏠 कॉलोनी/स्थान: ${property.colony}
-🔑 प्रकार: ${property.config} (${property.floor || 'विवरण'})
+🔑 प्रकार: ${property.config}${property.floor ? ` (${property.floor})` : ''}
 💰 ${priceText}
 
-क्या यह ${itemType} अभी उपलब्ध है? कृपया आगे की जानकारी साझा करें।`;
+${category === 'मकान खरीदना है' ? 'मेरे पास आपकी जरूरत के अनुसार प्रॉपर्टी उपलब्ध है।' : `क्या यह ${itemType} अभी उपलब्ध है? कृपया आगे की जानकारी साझा करें।`}`;
 
     return `https://wa.me/${fullNumber}?text=${encodeURIComponent(message)}`;
   };
@@ -146,6 +165,13 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold shadow">
             <Store className="w-3 h-3 text-cyan-300" />
             <span>दुकान (Shop)</span>
+          </span>
+        );
+      case 'मकान खरीदना है':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-bold shadow">
+            <Tag className="w-3 h-3 text-sky-300" />
+            <span>मकान खरीदना है</span>
           </span>
         );
       case 'मकान बेचना है':
@@ -168,6 +194,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   const getIconForCategory = () => {
     if (category === 'दुकान') return <Store className="w-5 h-5 text-cyan-400" />;
     if (category === 'गिरवी मकान') return <Shield className="w-5 h-5 text-amber-400" />;
+    if (category === 'मकान खरीदना है') return <Tag className="w-5 h-5 text-sky-400" />;
     if (category === 'मकान बेचना है') return <Tag className="w-5 h-5 text-emerald-400" />;
     return <Home className="w-5 h-5 text-indigo-400" />;
   };
@@ -246,9 +273,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-sm">
                   {property.config}
                 </span>
-                <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs border border-slate-700">
-                  {property.floor || 'विवरण'}
-                </span>
+                {property.floor && property.floor.trim() && (
+                  <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs border border-slate-700">
+                    {property.floor}
+                  </span>
+                )}
               </div>
 
               <div className="text-right">
@@ -261,7 +290,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
                   </>
                 ) : (
                   <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20 block text-right">
-                    रेंट की जानकारी उपलब्ध नहीं है
+                    {formatPrice(0)}
                   </span>
                 )}
               </div>

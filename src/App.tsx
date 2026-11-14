@@ -166,6 +166,7 @@ export default function App() {
       'गिरवी मकान': 0,
       'दुकान': 0,
       'मकान बेचना है': 0,
+      'मकान खरीदना है': 0,
     };
 
     for (const p of properties) {
@@ -515,7 +516,7 @@ export default function App() {
             </div>
 
             {/* Quick Metrics Badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 shrink-0">
               <div
                 onClick={() => setSelectedCategory('मकान किराए हेतु')}
                 className="bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/40 rounded-2xl p-2.5 text-center cursor-pointer transition-colors"
@@ -565,6 +566,19 @@ export default function App() {
                 <span className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mt-0.5">
                   <Tag className="w-2.5 h-2.5" />
                   मकान बेचना है
+                </span>
+              </div>
+
+              <div
+                onClick={() => setSelectedCategory('मकान खरीदना है')}
+                className="bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-sky-500/40 rounded-2xl p-2.5 text-center cursor-pointer transition-colors col-span-2 sm:col-span-1"
+              >
+                <span className="text-xl font-black text-sky-400 block">
+                  {categoryCounts['मकान खरीदना है'] || 0}
+                </span>
+                <span className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mt-0.5">
+                  <Tag className="w-2.5 h-2.5" />
+                  मकान खरीदना है
                 </span>
               </div>
             </div>

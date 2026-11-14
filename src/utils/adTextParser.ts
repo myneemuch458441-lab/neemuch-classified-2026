@@ -10,6 +10,7 @@ export interface ParsedAdResult {
   config: string;
   floor: string;
   rent: number;
+  priceDisplay: string;
   priceType: string;
   contactNumber: string;
   whatsappNumber: string;
@@ -24,6 +25,9 @@ const NEEMUCH_LOCALITY_PATTERNS: { regex: RegExp; value: string; label: string }
   // Shakti Nagar & Vistar (Explicitly at the top!)
   { regex: /(?:शक्ति\s*नगर\s*विस्तार|shakti\s*nagar\s*vistar)/i, value: 'शक्ति नगर विस्तार (Shakti Nagar Vistar)', label: 'शक्ति नगर विस्तार' },
   { regex: /(?:शक्ति\s*नगर|shakti\s*nagar)/i, value: 'शक्ति नगर (Shakti Nagar)', label: 'शक्ति नगर' },
+
+  // Gokul Dham Colony
+  { regex: /(?:गोकुल\s*धाम(?:\s*(?:कालोनी|कॉलोनी))?|gokul\s*dham)/i, value: 'गोकुल धाम कॉलोनी (Gokul Dham)', label: 'गोकुल धाम' },
 
   // Bhagwanpura
   { regex: /(?:भगवान\s*पुरा|भगवानपुरा|bhagwanpura)/i, value: 'भगवानपुरा (Bhagwanpura)', label: 'भगवानपुरा' },
@@ -160,11 +164,16 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
 
   const isBuySeeker =
     lower.includes('मकान खरीदना') ||
+    lower.includes('मकान ख़रीदना') ||
+    lower.includes('घर खरीदना') ||
     lower.includes('फ्लैट खरीदना') ||
     lower.includes('फ्लेट खरीदना') ||
     lower.includes('खरीदना है') ||
+    lower.includes('ख़रीदना है') ||
     lower.includes('प्लॉट खरीदना') ||
-    lower.includes('plot खरीदना');
+    lower.includes('plot खरीदना') ||
+    lower.includes('want to buy') ||
+    lower.includes('looking to buy');
 
   const isSaleOwner =
     lower.includes('मकान बेचना') ||
@@ -173,18 +182,17 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     lower.includes('बेचना है') ||
     lower.includes('बिकाऊ') ||
     lower.includes('फॉर सेल') ||
-    lower.includes('sale') ||
+    lower.includes('for sale') ||
     lower.includes('sell');
 
-  if (isBuySeeker || isSaleOwner) {
+  if (isBuySeeker) {
+    category = 'मकान खरीदना है';
+    adPurpose = 'मकान खरीदना है (खरीदार)';
+    isSeeker = true;
+  } else if (isSaleOwner) {
     category = 'मकान बेचना है';
-    if (isBuySeeker) {
-      adPurpose = 'मकान खरीदना है';
-      isSeeker = true;
-    } else {
-      adPurpose = 'मकान बेचना है';
-      isSeeker = false;
-    }
+    adPurpose = 'मकान बेचना है (विक्रेता)';
+    isSeeker = false;
   } else if (isShopSeeker || isShopOwner) {
     category = 'दुकान';
     if (lower.includes('गिरवी चाहिए')) {
@@ -248,7 +256,11 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
   const addressLineMatch = text.match(/(?:एड्रेस|एड्रैस|ऐड्रेस|address|लोकेशन|location|स्थान|पता|एरिया|area|कॉलोनी|कालोनी|colony|जगह)[\s:.-]*([^\n]+)/i);
 
   if (addressLineMatch && addressLineMatch[1]) {
-    const rawLoc = addressLineMatch[1].trim();
+    // Strip trailing budget/rent/note/contact clauses from location line
+    const rawLoc = addressLineMatch[1]
+      .replace(/[,\s]*(?:बजट|किराया|रेंट|मूल्य|कीमत|डिमांड|विशेष\s*नोट|नोट|सम्पर्क|संपर्क|मोबाइल|फोन|contact|budget|rent|price).*$/i, '')
+      .trim()
+      .replace(/[,.\s]+$/, '');
 
     for (const cp of NEEMUCH_LOCALITY_PATTERNS) {
       if (cp.regex.test(rawLoc)) {
@@ -259,7 +271,7 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
       }
     }
 
-    if (!matchedColony) {
+    if (!matchedColony && rawLoc) {
       const cleanedArea = rawLoc.replace(/\s*(?:के\s*(?:आस\s*)?पास|के\s*सामने|के\s*पीछे|निकट|near).*$/i, '').trim();
       if (cleanedArea) {
         matchedColony = cleanedArea;
@@ -302,9 +314,14 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
 
   // Landmark detection from text if not already captured
   if (!landmark) {
-    const landmarkPhraseMatch = normalizedText.match(/([^\n,।]{2,45}(?:के\s*(?:आस\s*)?पास|के\s*सामने|के\s*पीछे|निकट|चौराहा|हॉस्टल|मंदिर|पार्क|स्कूल|चौक)[^\n।]{0,30})/i);
+    const cleanTextForLandmark = normalizedText
+      .replace(/(?:सम्पर्क|संपर्क|मोबाइल|फोन|कांटेक्ट|contact|phone|mob|whatsapp)\s*[:\-–=]*.*$/i, '')
+      .trim();
+    const landmarkPhraseMatch = cleanTextForLandmark.match(
+      /([^,।\n]{2,45}(?:के\s*(?:आस\s*)?पास|के\s*सामने|के\s*पीछे|निकट|चौराहा|हॉस्टल|मंदिर|पार्क|स्कूल|चौक)(?:\s*,\s*[^,।\n]{2,45}(?:के\s*(?:आस\s*)?पास|के\s*सामने|के\s*पीछे|निकट|चौराहा|हॉस्टल|मंदिर|पार्क|स्कूल|चौक))?)/i
+    );
     if (landmarkPhraseMatch && landmarkPhraseMatch[1]) {
-      landmark = landmarkPhraseMatch[1].trim().replace(/[,.\s]+$/, '');
+      landmark = landmarkPhraseMatch[1].trim().replace(/^[,.\s]+|[,.\s]+$/g, '');
     } else if (lower.includes('lic') || lower.includes('एलआईसी')) {
       landmark = 'LIC चौराहे के आस पास';
     } else if (lower.includes('फव्वारा')) {
@@ -371,6 +388,14 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     ) {
       configsFound.push('एक कमरा');
     }
+
+    // Double / Triple story houses (e.g. "2 मंजिला मकान", "डबल स्टोरी")
+    if (/(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+      configsFound.push('3 मंजिला मकान');
+    } else if (/(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+      configsFound.push('2 मंजिला मकान');
+    }
+
     if (/पूरा\s*मकान|सेपरेट\s*मकान|स्वतंत्र\s*मकान/i.test(normalizedText) && configsFound.length === 0) {
       configsFound.push('पूरा मकान सेपरेट');
     }
@@ -381,30 +406,46 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
       // If user pasted multiple options (e.g. seeker ad listing options), join up to 28 chars cleanly
       const joined = configsFound.slice(0, 2).join(' / ');
       config = joined.length <= 28 ? joined : configsFound[0];
-    } else if (/(?:3rd|थर्ड|तीसरी\s*मंजिल|तीसरा\s*फ्लोर)/i.test(normalizedText)) {
-      config = '3rd फ्लोर';
-    } else if (/(?:2nd|सेकंड|दूसरी\s*मंजिल|दूसरा\s*फ्लोर)/i.test(normalizedText)) {
-      config = '2nd फ्लोर';
-    } else if (/(?:1st|फर्स्ट|पहली\s*मंजिल|पहला\s*फ्लोर)/i.test(normalizedText)) {
-      config = '1st फ्लोर';
-    } else if (/(?:ग्राउंड\s*फ्लोर|ground\s*floor)/i.test(normalizedText)) {
-      config = 'ग्राउंड फ्लोर';
     } else {
-      // Neutral fallback instead of misleading '2BHK'
-      config = 'एक कमरा';
+      // Check sqft range or area size (e.g. "1200 sqft. से 1400 sqft") BEFORE neutral fallback
+      const sqftRangeMatch = normalizedText.match(
+        /(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)?\.?\s*(?:से|to|[-–])\s*(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)/i
+      );
+      const sqftSingleMatch = normalizedText.match(/(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)/i);
+
+      if (sqftRangeMatch) {
+        config = `${sqftRangeMatch[1]}-${sqftRangeMatch[2]} sqft`;
+      } else if (sqftSingleMatch) {
+        config = `${sqftSingleMatch[1]} sqft`;
+      } else if (/(?:3rd|थर्ड|तीसरी\s*मंजिल|तीसरा\s*फ्लोर)/i.test(normalizedText)) {
+        config = '3rd फ्लोर';
+      } else if (/(?:2nd|सेकंड|दूसरी\s*मंजिल|दूसरा\s*फ्लोर)/i.test(normalizedText)) {
+        config = '2nd फ्लोर';
+      } else if (/(?:1st|फर्स्ट|पहली\s*मंजिल|पहला\s*फ्लोर)/i.test(normalizedText)) {
+        config = '1st फ्लोर';
+      } else if (/(?:ग्राउंड\s*फ्लोर|ground\s*floor)/i.test(normalizedText)) {
+        config = 'ग्राउंड फ्लोर';
+      } else {
+        // Zero-hallucination neutral fallback: NEVER invent 2BHK or एक कमरा if not mentioned!
+        config = 'विवरण अनुसार';
+      }
     }
   }
 
-  // 5. Floor description
-  let floor = 'ग्राउंड फ्लोर';
+  // 5. Floor description (ONLY populate if explicitly mentioned — never invent 'ग्राउंड फ्लोर')
+  let floor = '';
   if (category === 'दुकान') {
     if (/(?:1st|फर्स्ट|पहली\s*मंजिल|first\s*floor)/i.test(normalizedText)) {
       floor = '1st फ्लोर';
     } else if (/मल्टी\s*फ्लोर/i.test(normalizedText)) {
       floor = 'मल्टी फ्लोर';
-    } else {
+    } else if (/ग्राउंड\s*फ्लोर|ground\s*floor|शटर/i.test(normalizedText)) {
       floor = 'ग्राउंड फ्लोर शटर';
     }
+  } else if (/(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+    floor = '3 मंजिला';
+  } else if (/(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+    floor = 'डबल स्टोरी (2 मंजिला)';
   } else if (/(?:3rd|थर्ड|तीसरी\s*मंजिल|तीसरा\s*फ्लोर)/i.test(normalizedText)) {
     floor = '3rd फ्लोर';
   } else if (/(?:2nd|सेकंड|दूसरी\s*मंजिल|दूसरा\s*फ्लोर)/i.test(normalizedText)) {
@@ -417,18 +458,54 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     floor = 'स्वतंत्र मकान (सेपरेट)';
   }
 
-  // 6. Rent / Budget / Price
+  // 6. Rent / Budget / Price (supports ranges like "28 से 30 लाख" or "28/30 लाख")
   let rent = 0;
-  const rentMatch = text.match(/(?:किराया|रेंट|बजट|राशि|मूल्य|कीमत|rent|price|budget|rs|inr|₹)[\s:.-]*(\d+)/i);
-  if (rentMatch && rentMatch[1]) {
-    rent = parseInt(rentMatch[1], 10);
+  let priceDisplay = '';
+  const priceMatch = normalizedText.match(
+    /(?:किराया|रेंट|बजट|राशि|मूल्य|कीमत|डिमांड|demand|rent|price|budget|rs\.?|inr|₹)[\s:.\-–=]*(?:लगभग|करीब|approx|around|up\s*to)?\s*(\d+(?:\.\d+)?)\s*(?:(?:से|to|[-/–])\s*(\d+(?:\.\d+)?))?\s*(लाख|lakh|lac|हजार|thousand|k|करोड़|crore|cr)?/i
+  );
+
+  if (priceMatch && priceMatch[1]) {
+    const num1 = parseFloat(priceMatch[1]);
+    const num2 = priceMatch[2] ? parseFloat(priceMatch[2]) : null;
+    const rawUnit = (priceMatch[3] || '').toLowerCase();
+
+    let multiplier = 1;
+    let displayUnit = '';
+    if (/लाख|lakh|lac/.test(rawUnit)) {
+      multiplier = 100000;
+      displayUnit = 'लाख';
+    } else if (/करोड़|crore|cr/.test(rawUnit)) {
+      multiplier = 10000000;
+      displayUnit = 'करोड़';
+    } else if (/हजार|thousand|^k$/.test(rawUnit)) {
+      multiplier = 1000;
+      displayUnit = 'हजार';
+    }
+
+    if (num1 > 0) {
+      rent = Math.round(num1 * multiplier);
+      if (num2 && num2 > 0) {
+        priceDisplay = displayUnit ? `₹${num1}-${num2} ${displayUnit}` : `₹${num1}-${num2}`;
+      } else if (displayUnit) {
+        priceDisplay = `₹${num1} ${displayUnit}`;
+      }
+    }
   }
 
   let priceType = 'प्रति माह';
-  if (category === 'गिरवी मकान') priceType = 'गिरवी राशि';
-  else if (category === 'मकान बेचना है') priceType = 'बिक्री मूल्य';
+  const mentionsBudget = /बजट|budget/i.test(normalizedText);
+  if (category === 'मकान खरीदना है' || (isBuySeeker && mentionsBudget)) {
+    priceType = 'बजट';
+  } else if (category === 'गिरवी मकान') {
+    priceType = isSeeker && mentionsBudget ? 'गिरवी बजट' : 'गिरवी राशि';
+  } else if (category === 'मकान बेचना है') {
+    priceType = mentionsBudget ? 'बजट' : 'बिक्री मूल्य';
+  } else if (isSeeker && mentionsBudget) {
+    priceType = 'किराया बजट';
+  }
 
-  // 7. Amenities / Features Detection
+  // 7. Amenities / Features Detection (supporting Hindi spelling variants)
   const features: string[] = [];
   if (/कार\s*पार्किंग|car\s*parking/i.test(normalizedText)) features.push('कार पार्किंग स्पेस उपलब्ध');
   if (/बाइक\s*पार्किंग|bike\s*parking|two\s*wheeler/i.test(normalizedText)) features.push('बाइक पार्किंग स्पेस उपलब्ध');
@@ -442,25 +519,36 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
   if (/सीसीटीवी|cctv|कैमरा/i.test(normalizedText)) features.push('सीसीटीवी कैमरे उपलब्ध');
   if (/बालकनी|balcony/i.test(normalizedText)) features.push('बालकनी उपलब्ध');
   if (/मॉडुलर\s*किचन|modular\s*kitchen/i.test(normalizedText)) features.push('मॉडुलर किचन उपलब्ध');
-  if (/फर्नीश्ड|फर्नीचर|furnished/i.test(normalizedText)) {
+  if (/फर्नीश्ड|फर्निश्ड|फर्नीचर|फर्निचर|furnished/i.test(normalizedText)) {
     if (/सेमी|semi/i.test(normalizedText)) features.push('सेमी फर्नीश्ड मकान उपलब्ध');
     else features.push('फर्नीश्ड मकान उपलब्ध');
   }
-  if (/लेट्रिन[\s-]*बाथ|लेट[\s-]*बाथ|लैट[\s-]*बाथ|बाथरूम|toilet|washroom/i.test(normalizedText)) {
+  if (/लेट्रिन[\s-]*बाथ|लैट्रिन[\s-]*बाथ|लेट[\s-]*बाथ|लैट[\s-]*बाथ|बाथरूम|toilet|washroom/i.test(normalizedText)) {
     features.push('अटैच लेट-बाथ');
   }
   if (/मंदिर\s*(?:के\s*)?पास|मंदिर\s*निकट|temple/i.test(normalizedText)) features.push('मंदिर निकट');
   if (/गार्डन|बगीचा|garden/i.test(normalizedText)) features.push('गार्डन लोकेशन मकान');
   if (/मेन\s*रोड|main\s*road/i.test(normalizedText)) features.push('मेन रोड फेसिंग मकान');
-  if (/साइज|sqft|स्क्वायर\s*फीट/i.test(normalizedText)) {
-    const sizeMatch = normalizedText.match(/(?:साइज|size)[\s:.-]*([0-9a-zA-Z\s.]+)/i);
-    if (sizeMatch && sizeMatch[1]) {
-      features.push(`साइज: ${sizeMatch[1].trim().slice(0, 15)}`);
-    }
+
+  const sqftFeatureRange = normalizedText.match(
+    /(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)?\.?\s*(?:से|to|[-–])\s*(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)/i
+  );
+  const sqftFeatureSingle = normalizedText.match(/(\d{3,5})\s*(?:sqft|sq\.?\s*ft|वर्ग\s*फीट|स्क्वायर\s*फीट)/i);
+  if (sqftFeatureRange) {
+    features.push(`साइज: ${sqftFeatureRange[1]}-${sqftFeatureRange[2]} sqft`);
+  } else if (sqftFeatureSingle) {
+    features.push(`साइज: ${sqftFeatureSingle[1]} sqft`);
   }
 
   // 8. House / Reference Identifier
-  let houseNumber = isSeeker ? 'किराएदार (वांछित मकान)' : (category === 'दुकान' ? 'दुकान' : 'H.N. -');
+  let houseNumber =
+    category === 'मकान खरीदना है'
+      ? 'खरीदार (वांछित)'
+      : isSeeker
+      ? 'किराएदार (वांछित मकान)'
+      : category === 'दुकान'
+      ? 'दुकान'
+      : 'H.N. -';
   const hnMatch = text.match(/(?:h\.?n\.?|मकान\s*नं(?:बर)?\.?|दुकान\s*नं(?:बर)?\.?|house\s*no\.?|plot\s*no\.?)[\s:.-]*([a-zA-Z0-9\/-]+)/i);
   if (hnMatch && hnMatch[1]) {
     houseNumber = hnMatch[1];
@@ -468,7 +556,8 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
 
   // 9. Formulate Clear Headline Title (Under 140 chars for firestore rule validation)
   const areaPart = detectedColonyLabel || matchedColony.split(' ')[0];
-  const title = `[${adPurpose.split('(')[0].trim()}] ${config} - ${areaPart}`.slice(0, 140);
+  const configPart = config && config !== 'विवरण अनुसार' ? ` ${config}` : '';
+  const title = `[${adPurpose.split('(')[0].trim()}]${configPart} - ${areaPart}`.slice(0, 140);
 
   // 10. Description: Keep full original text typed by user so nothing is omitted
   const description = text;
@@ -482,6 +571,7 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     config,
     floor,
     rent,
+    priceDisplay,
     priceType,
     contactNumber: finalContact,
     whatsappNumber: finalWa,
@@ -561,6 +651,10 @@ export function matchesConfigFilter(item: Property, selectedConfig: string): boo
       return /4\s*(?:bhk|बीएचके)/i.test(combined);
     case '5BHK':
       return /5\s*(?:bhk|बीएचके)/i.test(combined);
+    case '2 मंजिला मकान':
+      return /(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(combined);
+    case '3 मंजिला मकान':
+      return /(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(combined);
     case 'ग्राउंड फ्लोर':
       return /ग्राउंड\s*फ्लोर|ground\s*floor/i.test(combined);
     case '1st फ्लोर':

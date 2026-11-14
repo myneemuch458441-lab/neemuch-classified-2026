@@ -98,11 +98,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     { label: 'गिरवी मकान', value: 'गिरवी मकान', icon: <Shield className="w-3.5 h-3.5" />, color: 'amber' },
     { label: 'दुकान (Shop)', value: 'दुकान', icon: <Store className="w-3.5 h-3.5" />, color: 'cyan' },
     { label: 'मकान बेचना है', value: 'मकान बेचना है', icon: <Tag className="w-3.5 h-3.5" />, color: 'indigo' },
+    { label: 'मकान खरीदना है', value: 'मकान खरीदना है', icon: <Tag className="w-3.5 h-3.5" />, color: 'sky' },
   ];
 
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur-md space-y-4">
-      {/* Category Tabs: किराए हेतु, गिरवी मकान, दुकान, मकान बेचना है */}
+      {/* Category Tabs: किराए हेतु, गिरवी मकान, दुकान, मकान बेचना है, मकान खरीदना है */}
       <div className="border-b border-slate-800 pb-3">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
           {categories.map((cat) => {

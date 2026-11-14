@@ -2,7 +2,8 @@ export type ListingCategory =
   | 'मकान किराए हेतु'
   | 'गिरवी मकान'
   | 'दुकान'
-  | 'मकान बेचना है';
+  | 'मकान बेचना है'
+  | 'मकान खरीदना है';
 
 export const PROPERTY_CONFIG_OPTIONS = [
   'एक कमरा',
@@ -17,6 +18,8 @@ export const PROPERTY_CONFIG_OPTIONS = [
   '3BHK',
   '4BHK',
   '5BHK',
+  '2 मंजिला मकान',
+  '3 मंजिला मकान',
   'ग्राउंड फ्लोर',
   '1st फ्लोर',
   '2nd फ्लोर',
@@ -31,6 +34,7 @@ export const PROPERTY_CONFIG_OPTIONS = [
   'टावर मे फ्लेट',
   'दुकान (Shop)',
   'कमर्शियल स्पेस',
+  'विवरण अनुसार',
 ] as const;
 
 export const FLOOR_OPTIONS = [
@@ -38,6 +42,8 @@ export const FLOOR_OPTIONS = [
   '1st फ्लोर',
   '2nd फ्लोर',
   '3rd फ्लोर',
+  'डबल स्टोरी (2 मंजिला)',
+  '3 मंजिला',
   'स्वतंत्र मकान (सेपरेट)',
   'ग्राउंड फ्लोर शटर',
   'मल्टी फ्लोर',
@@ -67,7 +73,8 @@ export interface Property {
   config: PropertyConfig | string;
   floor: string;
   rent: number;
-  priceType?: string; // 'प्रति माह' | 'गिरवी राशि' | 'बिक्री मूल्य'
+  priceDisplay?: string; // सटीक बजट/मूल्य रेंज जैसे '₹28-30 लाख'
+  priceType?: string; // 'प्रति माह' | 'गिरवी राशि' | 'बिक्री मूल्य' | 'बजट' | 'किराया बजट'
   contactNumber: string;
   whatsappNumber: string;
   description: string;

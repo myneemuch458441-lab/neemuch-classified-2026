@@ -96,12 +96,24 @@ export const AD_PURPOSE_OPTIONS: Record<
   ],
   'मकान बेचना है': [
     {
-      label: 'मकान बेचना है',
+      label: 'मकान बेचना है (विक्रेता)',
       role: 'owner',
       badge: 'विक्रेता (Seller)'
     },
     {
-      label: 'मकान खरीदना है',
+      label: 'प्लॉट / फ्लैट बेचना है (विक्रेता)',
+      role: 'owner',
+      badge: 'विक्रेता (Seller)'
+    }
+  ],
+  'मकान खरीदना है': [
+    {
+      label: 'मकान खरीदना है (खरीदार)',
+      role: 'seeker',
+      badge: 'खरीदार (Buyer)'
+    },
+    {
+      label: 'प्लॉट / फ्लैट खरीदना है (खरीदार)',
       role: 'seeker',
       badge: 'खरीदार (Buyer)'
     }
@@ -142,13 +154,15 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
   const [pastedText, setPastedText] = useState('');
   const [qpCategory, setQpCategory] = useState<ListingCategory>('मकान किराए हेतु');
   const [qpAdPurpose, setQpAdPurpose] = useState<string>('मकान किराए से देना है (मकान मालिक)');
-  const [qpConfig, setQpConfig] = useState<string>('एक कमरा');
+  const [qpConfig, setQpConfig] = useState<string>('विवरण अनुसार');
   const [qpCustomConfig, setQpCustomConfig] = useState<string>('');
-  const [qpFloor, setQpFloor] = useState<string>('ग्राउंड फ्लोर');
+  const [qpFloor, setQpFloor] = useState<string>('');
   const [qpColony, setQpColony] = useState<string>('');
   const [qpLandmark, setQpLandmark] = useState<string>('');
   const [qpPhone, setQpPhone] = useState<string>('');
   const [qpRent, setQpRent] = useState<string>('');
+  const [qpPriceDisplay, setQpPriceDisplay] = useState<string>('');
+  const [qpPriceType, setQpPriceType] = useState<string>('प्रति माह');
   const [qpHouseNumber, setQpHouseNumber] = useState<string>('');
   const [qpFeatures, setQpFeatures] = useState<string[]>([]);
   const [qpNewFeatureInput, setQpNewFeatureInput] = useState<string>('');
@@ -234,6 +248,12 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     if (!dirtyFields.rent) {
       setQpRent(parsedAd.rent > 0 ? String(parsedAd.rent) : '');
     }
+    if (!dirtyFields.priceDisplay) {
+      setQpPriceDisplay(parsedAd.priceDisplay || '');
+    }
+    if (!dirtyFields.priceType) {
+      setQpPriceType(parsedAd.priceType || 'प्रति माह');
+    }
     if (!dirtyFields.houseNumber) {
       setQpHouseNumber(parsedAd.houseNumber || '');
     }
@@ -295,28 +315,44 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     const cleanContact = `+91-${finalPhone.slice(-10)}`;
     const cleanWa = `91${finalPhone.slice(-10)}`;
     const finalColony = qpColony.trim() || parsedAd.colony || 'नीमच शहर (Neemuch City)';
-    const resolvedConfig = (qpConfig === '__custom__' ? qpCustomConfig.trim() : qpConfig.trim()) || 'एक कमरा';
+    const resolvedConfig = (qpConfig === '__custom__' ? qpCustomConfig.trim() : qpConfig.trim()) || 'विवरण अनुसार';
     const finalConfig = resolvedConfig.slice(0, 28);
-    const finalFloor = qpFloor.trim() || 'ग्राउंड फ्लोर';
+    const finalFloor = qpFloor.trim();
     const finalLandmark = qpLandmark.trim();
 
     const activePurposes = AD_PURPOSE_OPTIONS[qpCategory] || [];
     const matchedPurposeObj = activePurposes.find((p) => p.label === qpAdPurpose);
-    const isFinalSeeker = matchedPurposeObj ? matchedPurposeObj.role === 'seeker' : parsedAd.isSeeker;
+    const isFinalSeeker =
+      qpCategory === 'मकान खरीदना है' ||
+      (matchedPurposeObj ? matchedPurposeObj.role === 'seeker' : parsedAd.isSeeker);
 
     const finalHouseNumber =
       qpHouseNumber.trim() ||
-      (isFinalSeeker ? 'किराएदार (वांछित)' : qpCategory === 'दुकान' ? 'दुकान' : 'H.N. -');
+      (qpCategory === 'मकान खरीदना है'
+        ? 'खरीदार (वांछित)'
+        : isFinalSeeker
+        ? 'किराएदार (वांछित)'
+        : qpCategory === 'दुकान'
+        ? 'दुकान'
+        : 'H.N. -');
 
     const numericRent = Number(qpRent);
     const finalRent = !Number.isNaN(numericRent) && numericRent > 0 ? numericRent : 0;
+    const rawPriceDisplay = qpPriceDisplay.trim();
+    const finalPriceDisplay = rawPriceDisplay
+      ? (/^[₹0-9]/.test(rawPriceDisplay) ? (rawPriceDisplay.startsWith('₹') ? rawPriceDisplay : `₹${rawPriceDisplay}`) : rawPriceDisplay)
+      : '';
 
-    let finalPriceType = 'प्रति माह';
-    if (qpCategory === 'गिरवी मकान') finalPriceType = 'गिरवी राशि';
-    else if (qpCategory === 'मकान बेचना है') finalPriceType = 'बिक्री मूल्य';
+    let finalPriceType = qpPriceType.trim() || 'प्रति माह';
+    if (!qpPriceType.trim()) {
+      if (qpCategory === 'मकान खरीदना है') finalPriceType = 'बजट';
+      else if (qpCategory === 'गिरवी मकान') finalPriceType = 'गिरवी राशि';
+      else if (qpCategory === 'मकान बेचना है') finalPriceType = 'बिक्री मूल्य';
+    }
 
     const shortArea = finalColony.split('(')[0].trim() || finalColony;
-    const generatedTitle = `[${qpAdPurpose.split('(')[0].trim()}] ${finalConfig} - ${shortArea}`.slice(0, 140);
+    const configInTitle = finalConfig && finalConfig !== 'विवरण अनुसार' ? ` ${finalConfig}` : '';
+    const generatedTitle = `[${qpAdPurpose.split('(')[0].trim()}]${configInTitle} - ${shortArea}`.slice(0, 140);
 
     const propertyPayload: Omit<Property, 'id'> = {
       title: generatedTitle,
@@ -327,6 +363,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       config: finalConfig,
       floor: finalFloor,
       rent: finalRent,
+      priceDisplay: finalPriceDisplay,
       priceType: finalPriceType,
       contactNumber: cleanContact,
       whatsappNumber: cleanWa,
@@ -381,11 +418,14 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       setConfig('2BHK');
       setFloor('स्वतंत्र मकान (2 वर्ष लीज)');
     } else if (cat === 'मकान बेचना है') {
-      setConfig('3BHK');
+      setConfig('विवरण अनुसार');
       setFloor('स्वतंत्र मकान');
+    } else if (cat === 'मकान खरीदना है') {
+      setConfig('विवरण अनुसार');
+      setFloor('');
     } else {
-      setConfig('2BHK');
-      setFloor('ग्राउंड फ्लोर');
+      setConfig('विवरण अनुसार');
+      setFloor('');
     }
   };
 
@@ -417,18 +457,20 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     const cleanWa = cleanWaRaw.length === 10 ? `91${cleanWaRaw}` : cleanWaRaw;
 
     let priceType = 'प्रति माह';
-    if (listingCategory === 'गिरवी मकान') priceType = 'गिरवी राशि';
+    if (listingCategory === 'मकान खरीदना है') priceType = 'बजट';
+    else if (listingCategory === 'गिरवी मकान') priceType = 'गिरवी राशि';
     else if (listingCategory === 'मकान बेचना है') priceType = 'बिक्री मूल्य';
 
     const resolvedDetailConfig = (
       config === '__custom__'
         ? customDetailConfig.trim()
         : config
-    ) || (listingCategory === 'दुकान' ? 'दुकान ग्राउंड फ्लोर' : '2BHK');
+    ) || (listingCategory === 'दुकान' ? 'दुकान ग्राउंड फ्लोर' : 'विवरण अनुसार');
 
+    const configPart = resolvedDetailConfig !== 'विवरण अनुसार' ? ` ${resolvedDetailConfig}` : '';
     const finalTitle =
       title.trim() ||
-      `[${adPurpose.split('(')[0].trim()}] ${resolvedDetailConfig} - ${finalColony.split(' ')[0]} ${houseNumber ? `(${houseNumber})` : ''}`.trim();
+      `[${adPurpose.split('(')[0].trim()}]${configPart} - ${finalColony.split(' ')[0]} ${houseNumber ? `(${houseNumber})` : ''}`.trim();
 
     const rentNumber = typeof rent === 'number' && rent > 0 ? rent : 0;
 
@@ -437,16 +479,24 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       listingCategory: listingCategory,
       adPurpose: adPurpose,
       colony: finalColony,
-      houseNumber: houseNumber.trim() || (isSeeker ? 'किराएदार / वांछित क्षेत्र' : listingCategory === 'दुकान' ? 'दुकान' : 'H.N. -'),
+      houseNumber:
+        houseNumber.trim() ||
+        (listingCategory === 'मकान खरीदना है'
+          ? 'खरीदार (वांछित)'
+          : isSeeker
+          ? 'किराएदार / वांछित क्षेत्र'
+          : listingCategory === 'दुकान'
+          ? 'दुकान'
+          : 'H.N. -'),
       config: resolvedDetailConfig.slice(0, 28),
-      floor: floor || 'ग्राउंड फ्लोर',
+      floor: floor.trim(),
       rent: rentNumber,
       priceType: priceType,
       contactNumber: cleanContact,
       whatsappNumber: cleanWa,
       description:
         description.trim() ||
-        `${adPurpose}: ${finalColony} (नीमच)। स्वच्छ व हवादार परिसर।`,
+        `${adPurpose}: ${finalColony} (नीमच)।`,
       imageUrl: '',
       photos: uploadedPhotos,
       aiDetected: false,
@@ -482,7 +532,8 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     { label: 'मकान किराए हेतु', value: 'मकान किराए हेतु', icon: <Key className="w-4 h-4" />, desc: 'देना है या चाहिए' },
     { label: 'गिरवी मकान', value: 'गिरवी मकान', icon: <Shield className="w-4 h-4" />, desc: 'देना है या चाहिए' },
     { label: 'दुकान (Shop)', value: 'दुकान', icon: <Store className="w-4 h-4" />, desc: 'किराए/गिरवी' },
-    { label: 'मकान बेचना है', value: 'मकान बेचना है', icon: <Tag className="w-4 h-4" />, desc: 'बेचना या खरीदना' }
+    { label: 'मकान बेचना है', value: 'मकान बेचना है', icon: <Tag className="w-4 h-4" />, desc: 'विक्रेता' },
+    { label: 'मकान खरीदना है', value: 'मकान खरीदना है', icon: <Tag className="w-4 h-4" />, desc: 'खरीदार' }
   ];
 
   return (
@@ -710,13 +761,27 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                             setQpAdPurpose(opts[0].label);
                             markDirty('adPurpose');
                           }
+                          if (newCat === 'मकान खरीदना है') {
+                            setQpPriceType('बजट');
+                            markDirty('priceType');
+                          } else if (newCat === 'मकान बेचना है') {
+                            setQpPriceType('बिक्री मूल्य');
+                            markDirty('priceType');
+                          } else if (newCat === 'गिरवी मकान') {
+                            setQpPriceType('गिरवी राशि');
+                            markDirty('priceType');
+                          } else {
+                            setQpPriceType('प्रति माह');
+                            markDirty('priceType');
+                          }
                         }}
                         className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-amber-300 font-bold text-xs outline-none"
                       >
                         <option value="मकान किराए हेतु">मकान किराए हेतु</option>
                         <option value="गिरवी मकान">गिरवी मकान</option>
                         <option value="दुकान">दुकान (Shop / गोडाउन / ऑफिस)</option>
-                        <option value="मकान बेचना है">मकान बेचना है</option>
+                        <option value="मकान बेचना है">मकान बेचना है (विक्रेता)</option>
+                        <option value="मकान खरीदना है">मकान खरीदना है (खरीदार)</option>
                       </select>
 
                       <select
@@ -840,12 +905,12 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                       />
                     </div>
 
-                    {/* Box 4: संपर्क नंबर, किराया व मकान/दुकान नं. (Phone, Rent, House No. - Editable) */}
+                    {/* Box 4: संपर्क नंबर, किराया/बजट रेंज, प्रकार व मकान/दुकान नं. (Editable) */}
                     <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
                           <Phone className="w-3 h-3 text-emerald-400" />
-                          <span>मोबाइल नंबर, किराया व नं.:</span>
+                          <span>मोबाइल नंबर, बजट/कीमत व नं.:</span>
                         </label>
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                           एडिट योग्य
@@ -868,30 +933,53 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                         <div className="relative">
                           <IndianRupee className="w-3 h-3 text-amber-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                           <input
-                            type="number"
-                            value={qpRent}
+                            type="text"
+                            value={qpPriceDisplay || qpRent}
                             onChange={(e) => {
-                              setQpRent(e.target.value);
+                              const val = e.target.value;
+                              if (/^\d+$/.test(val.trim())) {
+                                setQpRent(val.trim());
+                                setQpPriceDisplay('');
+                              } else {
+                                setQpPriceDisplay(val);
+                              }
+                              markDirty('priceDisplay');
                               markDirty('rent');
                             }}
-                            placeholder="किराया/बजट (₹)"
+                            placeholder="बजट/किराया (उदा: 28-30 लाख)"
                             className="w-full pl-6 pr-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-200 text-xs outline-none"
                           />
                         </div>
 
-                        <div className="relative">
-                          <Hash className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          <input
-                            type="text"
-                            value={qpHouseNumber}
-                            onChange={(e) => {
-                              setQpHouseNumber(e.target.value);
-                              markDirty('houseNumber');
-                            }}
-                            placeholder="मकान/दुकान नं."
-                            className="w-full pl-6 pr-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-200 text-xs outline-none"
-                          />
-                        </div>
+                        <select
+                          value={qpPriceType}
+                          onChange={(e) => {
+                            setQpPriceType(e.target.value);
+                            markDirty('priceType');
+                          }}
+                          className="w-full px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-amber-300 text-xs outline-none"
+                        >
+                          <option value="प्रति माह">प्रति माह</option>
+                          <option value="बजट">बजट (Budget)</option>
+                          <option value="किराया बजट">किराया बजट</option>
+                          <option value="बिक्री मूल्य">बिक्री मूल्य (डिमांड)</option>
+                          <option value="गिरवी राशि">गिरवी राशि</option>
+                          <option value="गिरवी बजट">गिरवी बजट</option>
+                        </select>
+                      </div>
+
+                      <div className="relative">
+                        <Hash className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={qpHouseNumber}
+                          onChange={(e) => {
+                            setQpHouseNumber(e.target.value);
+                            markDirty('houseNumber');
+                          }}
+                          placeholder="मकान/दुकान नं. या पहचान"
+                          className="w-full pl-6 pr-2 py-1 rounded-lg bg-slate-950 border border-slate-700 focus:border-amber-400 text-slate-200 text-xs outline-none"
+                        />
                       </div>
                     </div>
                   </div>

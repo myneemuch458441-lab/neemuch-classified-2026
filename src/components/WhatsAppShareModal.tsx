@@ -16,12 +16,18 @@ export const WhatsAppShareModal: React.FC<WhatsAppShareModalProps> = ({
 
   if (!property) return null;
 
-  const category: ListingCategory = property.listingCategory || 'मकान किराए हेतु';
+  const rawCategory: ListingCategory = property.listingCategory || 'मकान किराए हेतु';
+  const category: ListingCategory =
+    rawCategory === 'मकान खरीदना है' || property.adPurpose?.includes('खरीदना') || property.title?.includes('खरीदना')
+      ? 'मकान खरीदना है'
+      : rawCategory;
 
-  const hasValidPrice = Boolean(property.rent && property.rent > 0);
+  const hasDisplayPrice = Boolean(property.priceDisplay && property.priceDisplay.trim());
+  const hasValidPrice = hasDisplayPrice || Boolean(property.rent && property.rent > 0);
 
   const formatPrice = (val?: number) => {
-    if (!val || val <= 0) return 'रेंट की जानकारी उपलब्ध नहीं है (बातचीत अनुसार)';
+    if (hasDisplayPrice) return property.priceDisplay!.trim();
+    if (!val || val <= 0) return 'बातचीत अनुसार';
     if (val >= 100000) {
       const inLakhs = val / 100000;
       return `₹${inLakhs % 1 === 0 ? inLakhs : inLakhs.toFixed(2)} लाख`;
@@ -30,6 +36,10 @@ export const WhatsAppShareModal: React.FC<WhatsAppShareModalProps> = ({
   };
 
   const getPriceLabel = () => {
+    if (category === 'मकान खरीदना है') {
+      if (property.priceType && property.priceType !== 'बिक्री मूल्य') return property.priceType;
+      return 'बजट';
+    }
     if (property.priceType) return property.priceType;
     if (category === 'गिरवी मकान') return 'गिरवी राशि';
     if (category === 'मकान बेचना है') return 'बिक्री मूल्य';
@@ -38,7 +48,7 @@ export const WhatsAppShareModal: React.FC<WhatsAppShareModalProps> = ({
 
   const priceLine = hasValidPrice
     ? `💰 *${getPriceLabel()}:* ${formatPrice(property.rent)}`
-    : '💰 *रेंट / मूल्य:* रेंट की जानकारी उपलब्ध नहीं है (बातचीत अनुसार)';
+    : `💰 *${getPriceLabel()}:* बातचीत अनुसार`;
 
   const isBooked =
     property.available === false ||

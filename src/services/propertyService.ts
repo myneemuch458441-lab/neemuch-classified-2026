@@ -68,15 +68,31 @@ export function subscribeToProperties(
       const items: Property[] = snapshot.docs.map((d) => {
         const data = d.data();
 
-        // Auto-detect or default category
+        // Auto-detect or preserve category accurately (never conflate खरीदना with बेचना!)
         let category: ListingCategory = data.listingCategory || 'मकान किराए हेतु';
         const titleLower = (data.title || '').toLowerCase();
-        if (titleLower.includes('गिरवी')) category = 'गिरवी मकान';
-        else if (titleLower.includes('दुकान') || titleLower.includes('shop')) category = 'दुकान';
-        else if (titleLower.includes('बेचना') || titleLower.includes('बिकाऊ') || titleLower.includes('sale')) category = 'मकान बेचना है';
+        const purposeLower = (data.adPurpose || '').toLowerCase();
+        const descLower = (data.description || '').toLowerCase();
+
+        if (
+          category === 'मकान खरीदना है' ||
+          purposeLower.includes('खरीदना') ||
+          titleLower.includes('खरीदना') ||
+          (category === 'मकान बेचना है' && descLower.includes('खरीदना है'))
+        ) {
+          category = 'मकान खरीदना है';
+        } else if (titleLower.includes('गिरवी')) {
+          category = 'गिरवी मकान';
+        } else if (titleLower.includes('दुकान') || titleLower.includes('shop')) {
+          category = 'दुकान';
+        } else if (titleLower.includes('बेचना') || titleLower.includes('बिकाऊ') || titleLower.includes('for sale')) {
+          category = 'मकान बेचना है';
+        }
 
         let defaultPriceType = data.priceType;
-        if (!defaultPriceType) {
+        if (category === 'मकान खरीदना है' && (!defaultPriceType || defaultPriceType === 'बिक्री मूल्य')) {
+          defaultPriceType = 'बजट';
+        } else if (!defaultPriceType) {
           if (category === 'गिरवी मकान') defaultPriceType = 'गिरवी राशि';
           else if (category === 'मकान बेचना है') defaultPriceType = 'बिक्री मूल्य';
           else defaultPriceType = 'प्रति माह';
@@ -88,11 +104,13 @@ export function subscribeToProperties(
           id: d.id,
           title: data.title || '',
           listingCategory: category,
+          adPurpose: data.adPurpose || '',
           colony: data.colony || '',
           houseNumber: data.houseNumber || '',
-          config: data.config || '2BHK',
-          floor: data.floor || 'ग्राउंड फ्लोर',
+          config: data.config || 'विवरण अनुसार',
+          floor: data.floor || '',
           rent: rentVal,
+          priceDisplay: data.priceDisplay || '',
           priceType: defaultPriceType,
           contactNumber: data.contactNumber || '+91-7999646575',
           whatsappNumber: data.whatsappNumber || '917999646575',

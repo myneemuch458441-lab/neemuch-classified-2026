@@ -41,9 +41,10 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
   const [colony, setColony] = useState(NEEMUCH_COLONIES[0]);
   const [customColony, setCustomColony] = useState('');
   const [houseNumber, setHouseNumber] = useState('');
-  const [config, setConfig] = useState<PropertyConfig | string>('2BHK');
-  const [floor, setFloor] = useState('ग्राउंड फ्लोर');
+  const [config, setConfig] = useState<PropertyConfig | string>('विवरण अनुसार');
+  const [floor, setFloor] = useState('');
   const [rent, setRent] = useState<number | ''>('');
+  const [priceDisplay, setPriceDisplay] = useState('');
   const [priceType, setPriceType] = useState('प्रति माह');
   const [contactNumber, setContactNumber] = useState('+91-7999646575');
   const [whatsappNumber, setWhatsappNumber] = useState('917999646575');
@@ -72,9 +73,10 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
         setCustomColony(initialProperty.colony || '');
       }
       setHouseNumber(initialProperty.houseNumber || '');
-      setConfig(initialProperty.config || '2BHK');
-      setFloor(initialProperty.floor || 'ग्राउंड फ्लोर');
+      setConfig(initialProperty.config || 'विवरण अनुसार');
+      setFloor(initialProperty.floor || '');
       setRent(initialProperty.rent && initialProperty.rent > 0 ? initialProperty.rent : '');
+      setPriceDisplay(initialProperty.priceDisplay || '');
       setPriceType(initialProperty.priceType || 'प्रति माह');
       setContactNumber(initialProperty.contactNumber || '+91-7999646575');
       setWhatsappNumber(initialProperty.whatsappNumber || '917999646575');
@@ -92,9 +94,10 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
       setColony(NEEMUCH_COLONIES[0]);
       setCustomColony('');
       setHouseNumber('');
-      setConfig('2BHK');
-      setFloor('ग्राउंड फ्लोर');
+      setConfig('विवरण अनुसार');
+      setFloor('');
       setRent('');
+      setPriceDisplay('');
       setPriceType('प्रति माह');
       setContactNumber('+91-7999646575');
       setWhatsappNumber('917999646575');
@@ -118,7 +121,7 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
     setListingCategory(newCat);
     if (newCat === 'गिरवी मकान') {
       setPriceType('गिरवी राशि');
-      setConfig('2BHK');
+      setConfig('विवरण अनुसार');
       setFloor('स्वतंत्र मकान (2 वर्ष लीज)');
     } else if (newCat === 'दुकान') {
       setPriceType('प्रति माह');
@@ -126,12 +129,16 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
       setFloor('ग्राउंड फ्लोर शटर');
     } else if (newCat === 'मकान बेचना है') {
       setPriceType('बिक्री मूल्य');
-      setConfig('3BHK');
+      setConfig('विवरण अनुसार');
       setFloor('स्वतंत्र मकान');
+    } else if (newCat === 'मकान खरीदना है') {
+      setPriceType('बजट');
+      setConfig('विवरण अनुसार');
+      setFloor('');
     } else {
       setPriceType('प्रति माह');
-      setConfig('2BHK');
-      setFloor('ग्राउंड फ्लोर');
+      setConfig('विवरण अनुसार');
+      setFloor('');
     }
   };
 
@@ -165,11 +172,16 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
     const propertyPayload: Omit<Property, 'id'> = {
       title: finalTitle,
       listingCategory: listingCategory,
+      adPurpose:
+        listingCategory === 'मकान खरीदना है'
+          ? 'मकान खरीदना है (खरीदार)'
+          : initialProperty?.adPurpose || '',
       colony: finalColony,
       houseNumber: houseNumber.trim() || (listingCategory === 'दुकान' ? 'दुकान' : 'H.N. -'),
-      config: config || (listingCategory === 'दुकान' ? 'दुकान (Shop)' : '2BHK'),
-      floor: floor || 'ग्राउंड फ्लोर',
+      config: config || (listingCategory === 'दुकान' ? 'दुकान (Shop)' : 'विवरण अनुसार'),
+      floor: floor.trim(),
       rent: typeof rent === 'number' && rent > 0 ? rent : 0,
+      priceDisplay: priceDisplay.trim(),
       priceType: priceType,
       contactNumber: contactNumber.trim(),
       whatsappNumber: cleanWa.length === 10 ? `91${cleanWa}` : cleanWa,
@@ -307,6 +319,19 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
                 <Tag className="w-3.5 h-3.5" />
                 <span>मकान बेचना है</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('मकान खरीदना है')}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all ${
+                  listingCategory === 'मकान खरीदना है'
+                    ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
+                    : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>मकान खरीदना है</span>
+              </button>
             </div>
           </div>
 
@@ -408,7 +433,9 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                {listingCategory === 'गिरवी मकान'
+                {listingCategory === 'मकान खरीदना है'
+                  ? 'बजट (₹ या रेंज जैसे 28-30 लाख) - वैकल्पिक'
+                  : listingCategory === 'गिरवी मकान'
                   ? 'गिरवी राशि (सुरक्षा निधि ₹) - वैकल्पिक'
                   : listingCategory === 'मकान बेचना है'
                   ? 'कुल बिक्री मूल्य (₹) - वैकल्पिक'
@@ -419,15 +446,26 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
                   <IndianRupee className="w-4 h-4 text-emerald-400" />
                 </span>
                 <input
-                  type="number"
-                  value={rent}
-                  onChange={(e) => setRent(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="यदि उपलब्ध न हो तो खाली छोड़ें"
+                  type="text"
+                  value={priceDisplay || rent}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setRent('');
+                      setPriceDisplay('');
+                    } else if (/^\d+$/.test(val.trim())) {
+                      setRent(Number(val.trim()));
+                      setPriceDisplay('');
+                    } else {
+                      setPriceDisplay(val);
+                    }
+                  }}
+                  placeholder="उदा: 28-30 लाख या 6000 (खाली भी छोड़ सकते हैं)"
                   className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-emerald-500 text-white text-sm outline-none"
                 />
               </div>
               <span className="text-[10px] text-slate-500 block mt-1">
-                * खाली छोड़ने पर स्क्रीन पर 'रेंट की जानकारी उपलब्ध नहीं है' (बातचीत अनुसार) प्रदर्शित होगा।
+                * खाली छोड़ने पर बातचीत अनुसार प्रदर्शित होगा।
               </span>
             </div>
 
@@ -441,7 +479,10 @@ export const AddEditPropertyModal: React.FC<AddEditPropertyModalProps> = ({
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-emerald-500 text-white text-sm outline-none"
               >
                 <option value="प्रति माह">प्रति माह (Per Month Rent)</option>
+                <option value="बजट">बजट (Buyer Budget)</option>
+                <option value="किराया बजट">किराया बजट (Tenant Budget)</option>
                 <option value="गिरवी राशि">गिरवी राशि (Refundable Deposit)</option>
+                <option value="गिरवी बजट">गिरवी बजट</option>
                 <option value="बिक्री मूल्य">बिक्री मूल्य (Total Sale Price)</option>
                 <option value="परक्राम्य (Negotiable)">परक्राम्य (Negotiable)</option>
               </select>

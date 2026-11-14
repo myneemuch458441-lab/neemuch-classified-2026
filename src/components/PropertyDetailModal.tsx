@@ -103,10 +103,22 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
 
   if (!property) return null;
 
-  const hasValidPrice = Boolean(property.rent && property.rent > 0);
+  const hasDisplayPrice = Boolean(property.priceDisplay && property.priceDisplay.trim());
+  const hasValidPrice = hasDisplayPrice || Boolean(property.rent && property.rent > 0);
+  const isBuyerAd =
+    category === 'मकान खरीदना है' ||
+    Boolean(property.adPurpose?.includes('खरीदना')) ||
+    Boolean(property.title?.includes('खरीदना'));
+  const displayCategory: ListingCategory = isBuyerAd ? 'मकान खरीदना है' : category;
 
   const formatPrice = (val?: number) => {
-    if (!val || val <= 0) return 'रेंट की जानकारी उपलब्ध नहीं है';
+    if (hasDisplayPrice) return property.priceDisplay!.trim();
+    if (!val || val <= 0) {
+      if (displayCategory === 'मकान खरीदना है') return 'बजट: बातचीत अनुसार';
+      if (displayCategory === 'मकान बेचना है') return 'मूल्य: बातचीत अनुसार';
+      if (displayCategory === 'गिरवी मकान') return 'गिरवी राशि: बातचीत अनुसार';
+      return 'रेंट की जानकारी उपलब्ध नहीं है';
+    }
     if (val >= 100000) {
       const inLakhs = val / 100000;
       return `₹${inLakhs % 1 === 0 ? inLakhs : inLakhs.toFixed(2)} लाख`;
@@ -116,9 +128,13 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
 
   const getPriceLabel = () => {
     if (!hasValidPrice) return '(बातचीत अनुसार)';
+    if (displayCategory === 'मकान खरीदना है') {
+      if (property.priceType && property.priceType !== 'बिक्री मूल्य') return property.priceType;
+      return 'बजट';
+    }
     if (property.priceType) return property.priceType;
-    if (category === 'गिरवी मकान') return 'गिरवी राशि';
-    if (category === 'मकान बेचना है') return 'बिक्री मूल्य';
+    if (displayCategory === 'गिरवी मकान') return 'गिरवी राशि';
+    if (displayCategory === 'मकान बेचना है') return 'बिक्री मूल्य';
     return '/ प्रति माह';
   };
 
@@ -127,22 +143,23 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
   const fullNumber = cleanNumber.length === 10 ? `91${cleanNumber}` : cleanNumber;
 
   let itemType = 'मकान';
-  if (category === 'दुकान') itemType = 'दुकान';
-  else if (category === 'गिरवी मकान') itemType = 'गिरवी मकान';
-  else if (category === 'मकान बेचना है') itemType = 'बिक्री का मकान';
+  if (displayCategory === 'दुकान') itemType = 'दुकान';
+  else if (displayCategory === 'गिरवी मकान') itemType = 'गिरवी मकान';
+  else if (displayCategory === 'मकान बेचना है') itemType = 'बिक्री का मकान';
+  else if (displayCategory === 'मकान खरीदना है') itemType = 'प्रॉपर्टी खरीदने की आवश्यकता';
 
   const priceText = hasValidPrice
     ? `${getPriceLabel()}: ${formatPrice(property.rent)}`
-    : 'रेंट की जानकारी उपलब्ध नहीं है (बातचीत अनुसार)';
+    : `${formatPrice(0)} (बातचीत अनुसार)`;
 
   const message = `नमस्ते! मैंने नीमच क्लासिफाइड पर आपकी लिस्टिंग देखी है:
-🏷️ श्रेणी: ${category}
+🏷️ श्रेणी: ${displayCategory}
 📍 पहचान/नंबर: ${property.houseNumber || 'H.N.'}
 🏠 स्थान: ${property.colony}
-🔑 प्रकार: ${property.config} (${property.floor || 'विवरण'})
+🔑 प्रकार: ${property.config}${property.floor ? ` (${property.floor})` : ''}
 💰 ${priceText}
 
-क्या यह ${itemType} अभी उपलब्ध है? कृपया विवरण साझा करें।`;
+${displayCategory === 'मकान खरीदना है' ? 'मेरे पास आपकी जरूरत के अनुसार प्रॉपर्टी उपलब्ध है।' : `क्या यह ${itemType} अभी उपलब्ध है? कृपया विवरण साझा करें।`}`;
 
   const waUrl = `https://wa.me/${fullNumber}?text=${encodeURIComponent(message)}`;
 
@@ -172,8 +189,10 @@ export const PropertyDetailModal: React.FC<PropertyDetailModalProps> = ({
                     {property.houseNumber || 'पहचान -'}
                   </span>
                 )}
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs shadow-sm">
-                  {category}
+                <span className={`px-2.5 py-1 rounded-lg font-bold text-xs shadow-sm ${
+                  displayCategory === 'मकान खरीदना है' ? 'bg-sky-400 text-slate-950' : 'bg-emerald-500 text-slate-950'
+                }`}>
+                  {displayCategory}
                 </span>
                 <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs border border-slate-700 font-semibold">
                   {property.config}
