@@ -84,6 +84,7 @@ export interface Property {
   aiDetected?: boolean;
   aiConfidence?: number;
   aiTags?: string[];
+  isRawAd?: boolean; // मूल विज्ञापन जैसा का तैसा (बिना किसी AI बदलाव के)
   features?: string[];
   landmark?: string;
   available: boolean;

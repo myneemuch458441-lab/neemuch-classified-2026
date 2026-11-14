@@ -50,6 +50,44 @@ export const WhatsAppShareModal: React.FC<WhatsAppShareModalProps> = ({
     ? `💰 *${getPriceLabel()}:* ${formatPrice(property.rent)}`
     : `💰 *${getPriceLabel()}:* बातचीत अनुसार`;
 
+  const isRawAd =
+    Boolean(property.isRawAd) ||
+    property.config === 'मूल विज्ञापन' ||
+    property.config === 'विवरण अनुसार';
+
+  const cleanText = (val?: string) =>
+    (val || '')
+      .replace(/किराएदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'किराएदार हेतु')
+      .replace(/खरीदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'खरीदार हेतु')
+      .replace(/\(?\s*वांछित\s*(?:मकान|क्षेत्र)?\s*\)?/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+  const genericIdentifiers = new Set([
+    '',
+    'H.N.',
+    'H.N. -',
+    'मूल विज्ञापन',
+    'दुकान',
+    'खरीदार हेतु',
+    'किराएदार हेतु',
+    'पहचान -',
+  ]);
+
+  const rawHouseNum = cleanText(property.houseNumber);
+  const hasRealHouseNumber = Boolean(rawHouseNum && !genericIdentifiers.has(rawHouseNum));
+  const hasRealColony = Boolean(
+    property.colony &&
+      !property.colony.includes('मूल विज्ञापन देखें') &&
+      property.colony !== 'नीमच शहर (Neemuch City)' &&
+      property.colony !== 'नीमच शहर'
+  );
+  const hasVisibleConfig = Boolean(
+    property.config &&
+      property.config !== 'मूल विज्ञापन' &&
+      property.config !== 'विवरण अनुसार'
+  );
+
   const isBooked =
     property.available === false ||
     String(property.available).toLowerCase() === 'false' ||
@@ -63,26 +101,69 @@ export const WhatsAppShareModal: React.FC<WhatsAppShareModalProps> = ({
     property.whatsappNumber
   );
 
-  const safeLandmark = sanitizeTextForBookedProperty(
-    property.landmark || '',
-    Boolean(isBooked),
-    property.houseNumber,
-    property.contactNumber,
-    property.whatsappNumber
+  const safeLandmark = cleanText(
+    sanitizeTextForBookedProperty(
+      property.landmark || '',
+      Boolean(isBooked),
+      property.houseNumber,
+      property.contactNumber,
+      property.whatsappNumber
+    )
   );
 
-  const shareText = `🏡 *नीमच क्लासिफाइड (Neemuch Classified) - लिस्टिंग अलर्ट* 🏡
+  const shareLines: string[] = [
+    `🏡 *नीमच क्लासिफाइड (Neemuch Classified) - लिस्टिंग अलर्ट* 🏡`,
+    '',
+    `🏷️ *श्रेणी:* ${category}${property.adPurpose ? ` (${cleanText(property.adPurpose)})` : ''}`,
+  ];
 
-🏷️ *श्रेणी:* ${category}
-📍 *पहचान / नंबर:* ${isBooked ? '🔒 [मकान बुक है - नंबर गोपनीय]' : (property.houseNumber || 'H.N.')}
-🏙️ *कॉलोनी / स्थान:* ${property.colony}
-🔑 *प्रकार:* ${property.config} • ${property.floor || 'विवरण'}
-${priceLine}
-📞 *सम्पर्क:* ${isBooked ? '🔒 [मकान बुक होने के कारण नंबर सुरक्षित है]' : (property.contactNumber || '+91-7999646575')}
-${property.landmark ? `📌 *पहचान स्थल:* ${safeLandmark}\n` : ''}
-📝 *विवरण:* ${safeDescription}
+  if (isRawAd) {
+    if (hasRealHouseNumber && !isBooked) {
+      shareLines.push(`📍 *पहचान / नंबर:* ${rawHouseNum}`);
+    }
+    if (hasRealColony) {
+      shareLines.push(`🏙️ *कॉलोनी / स्थान:* ${property.colony}`);
+    }
+    if (hasVisibleConfig) {
+      shareLines.push(`🔑 *प्रकार:* ${property.config}${property.floor ? ` • ${property.floor}` : ''}`);
+    }
+    if (hasValidPrice) {
+      shareLines.push(priceLine);
+    }
+    shareLines.push('');
+    shareLines.push(`📝 *मूल विज्ञापन:*\n${safeDescription}`);
+    shareLines.push('');
+    shareLines.push(
+      `📞 *सम्पर्क:* ${isBooked ? '🔒 [मकान बुक होने के कारण नंबर सुरक्षित है]' : (property.contactNumber || '+91-7999646575')}`
+    );
+  } else {
+    shareLines.push(
+      `📍 *पहचान / नंबर:* ${isBooked ? '🔒 [मकान बुक है - नंबर गोपनीय]' : (rawHouseNum || 'H.N.')}`
+    );
+    if (hasRealColony) {
+      shareLines.push(`🏙️ *कॉलोनी / स्थान:* ${property.colony}`);
+    }
+    if (hasVisibleConfig) {
+      shareLines.push(`🔑 *प्रकार:* ${property.config}${property.floor ? ` • ${property.floor}` : ''}`);
+    }
+    shareLines.push(priceLine);
+    shareLines.push(
+      `📞 *सम्पर्क:* ${isBooked ? '🔒 [मकान बुक होने के कारण नंबर सुरक्षित है]' : (property.contactNumber || '+91-7999646575')}`
+    );
+    if (safeLandmark && safeLandmark !== property.colony) {
+      shareLines.push(`📌 *पहचान स्थल:* ${safeLandmark}`);
+    }
+    shareLines.push('');
+    shareLines.push(`📝 *विवरण:* ${safeDescription}`);
+  }
 
-${isBooked ? '🚫 *स्थिति:* यह मकान बुक हो चुका है (मालिक का नंबर गोपनीय)\n' : ''}📲 *नीमच क्लासिफाइड हेल्पलाइन:* +91-7999646575`;
+  if (isBooked) {
+    shareLines.push('');
+    shareLines.push('🚫 *स्थिति:* यह मकान बुक हो चुका है (मालिक का नंबर गोपनीय)');
+  }
+  shareLines.push(`📲 *नीमच क्लासिफाइड हेल्पलाइन:* +91-7999646575`);
+
+  const shareText = shareLines.join('\n');
 
   const waShareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 

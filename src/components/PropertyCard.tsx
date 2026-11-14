@@ -60,14 +60,60 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     (property as any).status === 'booked' ||
     (property as any).status === 'unavailable';
 
+  const isRawAd =
+    Boolean(property.isRawAd) ||
+    property.config === 'मूल विज्ञापन' ||
+    property.config === 'विवरण अनुसार';
+
+  const cleanText = (val?: string) =>
+    (val || '')
+      .replace(/किराएदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'किराएदार हेतु')
+      .replace(/खरीदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'खरीदार हेतु')
+      .replace(/\(?\s*वांछित\s*(?:मकान|क्षेत्र)?\s*\)?/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+  const genericIdentifiers = new Set([
+    '',
+    'H.N.',
+    'H.N. -',
+    'मूल विज्ञापन',
+    'दुकान',
+    'खरीदार हेतु',
+    'किराएदार हेतु',
+    'पहचान -',
+  ]);
+
+  const rawHouseNum = cleanText(property.houseNumber);
+  const hasRealHouseNumber = Boolean(rawHouseNum && !genericIdentifiers.has(rawHouseNum));
+
+  const headerTitleText = hasRealHouseNumber
+    ? rawHouseNum
+    : cleanText(property.adPurpose?.split('(')[0]) || category;
+
+  const hasRealColony = Boolean(
+    property.colony &&
+      !property.colony.includes('मूल विज्ञापन देखें') &&
+      property.colony !== 'नीमच शहर (Neemuch City)' &&
+      property.colony !== 'नीमच शहर'
+  );
+
+  const hasVisibleConfig = Boolean(
+    property.config &&
+      property.config !== 'मूल विज्ञापन' &&
+      property.config !== 'विवरण अनुसार'
+  );
+
   // Sanitize title so house number / phone number does not leak in the title when booked
   const displayTitle = React.useMemo(() => {
-    return sanitizeTextForBookedProperty(
-      property.title || '',
-      isBooked,
-      property.houseNumber,
-      property.contactNumber,
-      property.whatsappNumber
+    return cleanText(
+      sanitizeTextForBookedProperty(
+        property.title || '',
+        isBooked,
+        property.houseNumber,
+        property.contactNumber,
+        property.whatsappNumber
+      )
     );
   }, [property.title, property.houseNumber, property.contactNumber, property.whatsappNumber, isBooked]);
 
@@ -84,12 +130,14 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
 
   // Sanitize landmark
   const displayLandmark = React.useMemo(() => {
-    return sanitizeTextForBookedProperty(
-      property.landmark || '',
-      isBooked,
-      property.houseNumber,
-      property.contactNumber,
-      property.whatsappNumber
+    return cleanText(
+      sanitizeTextForBookedProperty(
+        property.landmark || '',
+        isBooked,
+        property.houseNumber,
+        property.contactNumber,
+        property.whatsappNumber
+      )
     );
   }, [property.landmark, property.houseNumber, property.contactNumber, property.whatsappNumber, isBooked]);
 
@@ -135,14 +183,20 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
     else if (category === 'मकान बेचना है') itemType = 'बिक्री का मकान';
     else if (category === 'मकान खरीदना है') itemType = 'प्रॉपर्टी खरीदने की आवश्यकता';
 
+    if (isRawAd) {
+      const shortSnippet = (property.description || '').trim().split('\n').slice(0, 3).join(' | ');
+      const message = `नमस्ते! मैंने नीमच क्लासिफाइड (Neemuch Classified) पर आपका यह विज्ञापन देखा है (${category}):
+"${shortSnippet}"
+
+${category === 'मकान खरीदना है' ? 'मेरे पास आपकी जरूरत के अनुसार प्रॉपर्टी उपलब्ध है।' : `क्या यह ${itemType} अभी उपलब्ध है? कृपया जानकारी साझा करें।`}`;
+      return `https://wa.me/${fullNumber}?text=${encodeURIComponent(message)}`;
+    }
+
     const priceText = hasValidPrice
       ? `${getPriceLabel()}: ${formatPrice(property.rent)}`
       : `${formatPrice(0)} (बातचीत अनुसार)`;
 
-    const message = `नमस्ते! मैंने नीमच क्लासिफाइड (Neemuch Classified) पर आपका [${category}] देखा है:
-📍 नंबर/पहचान: ${property.houseNumber || 'H.N.'}
-🏠 कॉलोनी/स्थान: ${property.colony}
-🔑 प्रकार: ${property.config}${property.floor ? ` (${property.floor})` : ''}
+    const message = `नमस्ते! मैंने नीमच क्लासिफाइड (Neemuch Classified) पर आपका [${category}] देखा है:${hasRealHouseNumber ? `\n📍 नंबर/पहचान: ${rawHouseNum}` : ''}${hasRealColony ? `\n🏠 कॉलोनी/स्थान: ${property.colony}` : ''}${hasVisibleConfig ? `\n🔑 प्रकार: ${property.config}${property.floor ? ` (${property.floor})` : ''}` : ''}
 💰 ${priceText}
 
 ${category === 'मकान खरीदना है' ? 'मेरे पास आपकी जरूरत के अनुसार प्रॉपर्टी उपलब्ध है।' : `क्या यह ${itemType} अभी उपलब्ध है? कृपया आगे की जानकारी साझा करें।`}`;
@@ -244,12 +298,12 @@ ${category === 'मकान खरीदना है' ? 'मेरे पा�
                       </span>
                     </div>
                   ) : (
-                    <span className="text-base sm:text-lg font-black text-amber-300 tracking-wide font-mono block">
-                      {property.houseNumber || 'H.N. -'}
+                    <span className="text-base sm:text-lg font-black text-amber-300 tracking-wide block">
+                      {headerTitleText}
                     </span>
                   )}
                   <span className="text-[10px] text-slate-400 uppercase tracking-wider block -mt-0.5">
-                    {category === 'दुकान' ? 'दुकान / कमर्शियल' : 'नीमच प्रॉपर्टी'}
+                    {isRawAd ? 'मूल विज्ञापन (जैसा का तैसा)' : category === 'दुकान' ? 'दुकान / कमर्शियल' : 'नीमच प्रॉपर्टी'}
                   </span>
                 </div>
               </div>
@@ -267,34 +321,40 @@ ${category === 'मकान खरीदना है' ? 'मेरे पा�
               </div>
             </div>
 
-            {/* Price and Config Highlights */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-sm">
-                  {property.config}
-                </span>
-                {property.floor && property.floor.trim() && (
-                  <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs border border-slate-700">
-                    {property.floor}
-                  </span>
-                )}
-              </div>
-
-              <div className="text-right">
-                {hasValidPrice ? (
-                  <>
-                    <span className="text-emerald-400 font-extrabold text-lg sm:text-xl">
-                      {formatPrice(property.rent)}
+            {/* Price and Config Highlights (hidden cleanly on As-It-Is ads unless user provided them) */}
+            {(hasVisibleConfig || Boolean(property.floor && property.floor.trim()) || hasValidPrice || !isRawAd) && (
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {hasVisibleConfig && (
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-sm">
+                      {property.config}
                     </span>
-                    <span className="text-[10px] text-slate-400 block -mt-1">{getPriceLabel()}</span>
-                  </>
-                ) : (
-                  <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20 block text-right">
-                    {formatPrice(0)}
-                  </span>
+                  )}
+                  {property.floor && property.floor.trim() && (
+                    <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs border border-slate-700">
+                      {property.floor}
+                    </span>
+                  )}
+                </div>
+
+                {(hasValidPrice || !isRawAd) && (
+                  <div className="text-right">
+                    {hasValidPrice ? (
+                      <>
+                        <span className="text-emerald-400 font-extrabold text-lg sm:text-xl">
+                          {formatPrice(property.rent)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block -mt-1">{getPriceLabel()}</span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20 block text-right">
+                        {formatPrice(0)}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -309,40 +369,65 @@ ${category === 'मकान खरीदना है' ? 'मेरे पा�
                     ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                     : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
                 }`}>
-                  {property.adPurpose}
+                  {cleanText(property.adPurpose)}
                 </span>
               </div>
             )}
 
-            {/* Title */}
-            <h3
-              onClick={() => onSelect(property)}
-              className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-1 cursor-pointer"
-              title={displayTitle}
-            >
-              {displayTitle}
-            </h3>
+            {isRawAd ? (
+              /* As-It-Is Full Verbatim Advertisement Box (No truncation, no synthetic rewrite) */
+              <div
+                onClick={() => onSelect(property)}
+                className="p-3 rounded-xl bg-slate-950/75 border border-slate-700/80 hover:border-emerald-500/40 cursor-pointer transition-colors"
+                title="पूरा विवरण देखने के लिए क्लिक करें"
+              >
+                <p className="text-[13px] sm:text-sm text-slate-100 whitespace-pre-line leading-relaxed font-sans break-words">
+                  {displayDescription || displayTitle}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Title */}
+                <h3
+                  onClick={() => onSelect(property)}
+                  className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition-colors line-clamp-1 cursor-pointer"
+                  title={displayTitle}
+                >
+                  {displayTitle}
+                </h3>
 
-            {/* Colony / Locality */}
-            <div className="flex items-center gap-1.5 text-xs text-slate-300">
-              <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-              <span className="truncate font-medium">{property.colony}</span>
-            </div>
+                {/* Colony / Locality */}
+                {hasRealColony && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                    <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span className="truncate font-medium">{property.colony}</span>
+                  </div>
+                )}
 
-            {/* Landmark if present */}
-            {property.landmark && (
-              <div className="text-[11px] text-slate-400 truncate pl-5 -mt-1">
-                पहचान: {displayLandmark}
+                {/* Landmark if present */}
+                {displayLandmark && displayLandmark !== property.colony && (
+                  <div className="text-[11px] text-slate-400 truncate pl-5 -mt-1">
+                    पहचान: {displayLandmark}
+                  </div>
+                )}
+
+                {/* Description snippet */}
+                <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                  {displayDescription || 'नीमच क्लासिफाइड पर सूचीबद्ध प्रॉपर्टी।'}
+                </p>
+              </>
+            )}
+
+            {/* Optional Colony/Landmark shown on raw ad only if manually entered */}
+            {isRawAd && hasRealColony && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="truncate font-medium">{property.colony}</span>
               </div>
             )}
 
-            {/* Description snippet */}
-            <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-              {displayDescription || 'नीमच क्लासिफाइड पर सूचीबद्ध प्रॉपर्टी।'}
-            </p>
-
             {/* Features Tags */}
-            {property.features && property.features.length > 0 && (
+            {property.features && property.features.length > 0 && !(isRawAd && property.features.length === 1 && property.features[0] === 'बिजली-पानी व्यवस्था') && (
               <div className="flex flex-wrap gap-1 pt-1">
                 {property.features.slice(0, 3).map((feat, idx) => (
                   <span

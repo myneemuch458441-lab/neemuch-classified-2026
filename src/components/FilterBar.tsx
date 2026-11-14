@@ -39,6 +39,7 @@ interface FilterBarProps {
   onResetFilters: () => void;
   totalFilteredCount: number;
   categoryCounts: Record<string, number>;
+  configCounts?: Record<string, number>;
   availableCount: number;
   bookedCount: number;
 }
@@ -57,6 +58,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onResetFilters,
   totalFilteredCount,
   categoryCounts,
+  configCounts,
   availableCount,
   bookedCount,
 }) => {
@@ -266,21 +268,48 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           </div>
         </div>
 
-        {/* Configuration Pills - Wrapped grid so all options are visible and clickable */}
+        {/* Configuration Pills - Wrapped grid so all options are visible and clickable with live counts */}
         <div className="flex flex-wrap items-center gap-1.5">
           {CONFIG_OPTIONS.map((cfg) => {
             const isSelected = selectedConfig === cfg;
+            const count = configCounts ? configCounts[cfg] ?? 0 : undefined;
+            const displayLabelMap: Record<string, string> = {
+              All: 'सभी कॉन्फ़िग',
+              'एक कमरा': 'एक कमरा / 1 Room',
+              'एक कमरा किचन': 'एक कमरा किचन / 1 Room Kitchen',
+              'एक हॉल': 'एक हाल / 1 Haal',
+              'एक हॉल अटैच किचन': 'एक हाल किचन / हॉल अटैच किचन',
+              '2 कमरे किचन': '2 कमरे किचन / 2 Room Kitchen',
+              '3 कमरे किचन': '3 कमरे किचन / 3 Room Kitchen',
+              '4 कमरे किचन': '4 कमरे किचन / 4 Room Kitchen',
+              'दुकान (Shop)': 'दुकान / Shop',
+            };
+            const label = displayLabelMap[cfg] || cfg;
+
             return (
               <button
                 key={cfg}
                 onClick={() => onConfigChange(cfg)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all border cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all border cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-md shadow-emerald-500/20 scale-[1.02]'
                     : 'bg-slate-950/80 text-slate-300 hover:text-white border-slate-800 hover:border-slate-700 hover:bg-slate-900'
                 }`}
               >
-                {cfg === 'All' ? 'सभी कॉन्फ़िग' : cfg}
+                <span>{label}</span>
+                {count !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      isSelected
+                        ? 'bg-slate-950 text-emerald-400'
+                        : count > 0
+                        ? 'bg-slate-800 text-emerald-400'
+                        : 'bg-slate-900 text-slate-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}

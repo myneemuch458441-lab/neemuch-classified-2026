@@ -51,8 +51,11 @@ const NEEMUCH_LOCALITY_PATTERNS: { regex: RegExp; value: string; label: string }
   // Cantt
   { regex: /(?:कैंट|छावनी|cantt)/i, value: 'कैंट क्षेत्र (Neemuch Cantt)', label: 'कैंट क्षेत्र' },
 
-  // Teacher's / Shikshak Colony (ONLY when explicitly written)
-  { regex: /(?:टीचर\s*(?:कालोनी|कॉलोनी|नगर)?|शिक्षक\s*(?:कालोनी|कॉलोनी|नगर)?|teacher(?:'s)?\s*colony)/i, value: 'शिक्षक कालोनी (Teacher\'s Colony)', label: 'शिक्षक कालोनी' },
+  // Teacher's / Shikshak Colony (ONLY when explicitly written - supports टीचर/टिचर्स)
+  { regex: /(?:टिचर्स?\s*(?:कालोनी|कॉलोनी|नगर)?|टीचर्स?\s*(?:कालोनी|कॉलोनी|नगर)?|शिक्षक\s*(?:कालोनी|कॉलोनी|नगर)?|teacher(?:'s)?\s*colony)/i, value: 'शिक्षक कालोनी (Teacher\'s Colony)', label: 'शिक्षक कालोनी' },
+
+  // Jawahar Nagar
+  { regex: /(?:जवाहर\s*नगर|jawahar\s*nagar)/i, value: 'जवाहर नगर (Jawahar Nagar)', label: 'जवाहर नगर' },
 
   // Shivaji Nagar
   { regex: /(?:शिवाजी\s*नगर|shivaji\s*nagar)/i, value: 'शिवाजी नगर (Shivaji Nagar)', label: 'शिवाजी नगर' },
@@ -108,13 +111,10 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
   let adPurpose = 'मकान किराए से चाहिए (किराएदार)';
   let isSeeker = true;
 
+  const needWordRegex = /(?:चाहिए|चाहिये|चाहीए|चहिये|चहिए|चहिएं|जरूरत|आवश्यकता)/i;
+
   const isRentSeeker =
-    lower.includes('किराए से चाहिए') ||
-    lower.includes('किराये से चाहिए') ||
-    lower.includes('किराया चाहिए') ||
-    lower.includes('रूम चाहिए') ||
-    lower.includes('मकान चाहिए') ||
-    lower.includes('चाहिए') ||
+    needWordRegex.test(normalizedText) ||
     lower.includes('किराएदार') ||
     lower.includes('need house') ||
     lower.includes('want rent') ||
@@ -124,13 +124,14 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     lower.includes('किराए से देना') ||
     lower.includes('किराये से देना') ||
     lower.includes('किराए पर देना') ||
+    lower.includes('किराये पर देना') ||
     lower.includes('खाली है') ||
+    lower.includes('उपलब्ध है') ||
     lower.includes('to let') ||
     lower.includes('मकान मालिक');
 
   const isGirviSeeker =
-    lower.includes('गिरवी चाहिए') ||
-    lower.includes('गिरवी लेना है');
+    /(?:गिरवी.*(?:चाहिए|चाहिये|चाहीए|चहिये|चहिए|लेना\s*है)|(?:चाहिए|चहिये).*गिरवी)/i.test(normalizedText);
 
   const isGirviOwner =
     lower.includes('गिरवी देना') ||
@@ -148,10 +149,7 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     lower.includes('office space');
 
   const isShopSeeker =
-    lower.includes('दुकान चाहिए') ||
-    lower.includes('दुकान किराए से चाहिए') ||
-    lower.includes('shop need') ||
-    lower.includes('दुकान गिरवी चाहिए') ||
+    /(?:दुकान.*(?:चाहिए|चाहिये|चहिये|चहिए)|shop\s*need)/i.test(normalizedText) ||
     (isCommercialKeyword && isRentSeeker);
 
   const isShopOwner =
@@ -252,8 +250,8 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
   let detectedColonyLabel = '';
   let landmark = '';
 
-  // Step 3A: Check explicit address / location line in the text
-  const addressLineMatch = text.match(/(?:एड्रेस|एड्रैस|ऐड्रेस|address|लोकेशन|location|स्थान|पता|एरिया|area|कॉलोनी|कालोनी|colony|जगह)[\s:.-]*([^\n]+)/i);
+  // Step 3A: Check explicit address / location label on the SAME line (never swallow newlines!)
+  const addressLineMatch = text.match(/(?:^|\n)[ \t]*(?:एड्रेस|एड्रैस|ऐड्रेस|address|लोकेशन|location|स्थान|पता|एरिया|area|जगह)[ \t]*[:.\-–=]*[ \t]*([^\n]+)/i);
 
   if (addressLineMatch && addressLineMatch[1]) {
     // Strip trailing budget/rent/note/contact clauses from location line
@@ -359,40 +357,40 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     // Check Hall + Attach Kitchen BEFORE generic rooms or BHK!
     const configsFound: string[] = [];
 
-    if (/(?:1|एक)\s*(?:हॉल|हाल|hall)\s*(?:अटैच|attach|attached|विथ|with|सहित|\+)?\s*(?:किचन|रसोई|kitchen)|(?:हॉल|हाल)\s*अटैच\s*किचन/i.test(normalizedText)) {
+    if (/(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:हॉल|हाल|hall|haal|hal)\s*(?:अटैच|attach(?:ed)?|विथ|with|सहित|\+|और)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn)|(?:हॉल|हाल|hall|haal)\s*(?:अटैच|attach(?:ed)?)\s*(?:किचन|रसोई|kitchen|kitchan|kichen)/i.test(normalizedText)) {
       configsFound.push('एक हॉल अटैच किचन');
-    } else if (/(?:1|एक)\s*(?:हॉल|हाल|hall)\b|सिंगल\s*(?:हॉल|हाल)/i.test(normalizedText)) {
+    } else if (/(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:हॉल|हाल|hall|haal|hal)(?![a-zA-Z\u0900-\u097F])/i.test(normalizedText)) {
       configsFound.push('एक हॉल');
     }
 
-    if (/(?:4|चार)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(normalizedText)) {
+    if (/(?<!\d)(?:4|चार|four|char)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen)/i.test(normalizedText)) {
       configsFound.push('4 कमरे किचन');
     }
-    if (/(?:3|तीन)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(normalizedText)) {
+    if (/(?<!\d)(?:3|तीन|three|teen)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen)/i.test(normalizedText)) {
       configsFound.push('3 कमरे किचन');
     }
-    if (/(?:2|दो)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(normalizedText)) {
+    if (/(?<!\d)(?:2|दो|two|do)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen)/i.test(normalizedText)) {
       configsFound.push('2 कमरे किचन');
     }
-    if (/(?:1|एक)\s*(?:कमरा|कमरे|रूम|room)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)|1\s*rk\b/i.test(normalizedText)) {
+    if (/(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:कमरा|कमरे|रूम|room|kamra|rm)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen)|(?<!\d)1\s*rk(?![a-zA-Z0-9])/i.test(normalizedText)) {
       configsFound.push('एक कमरा किचन');
     }
-    if (/5\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('5BHK');
-    if (/4\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('4BHK');
-    if (/3\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('3BHK');
-    if (/2\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('2BHK');
-    if (/1\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('1BHK');
+    if (/(?<!\d)5\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('5BHK');
+    if (/(?<!\d)4\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('4BHK');
+    if (/(?<!\d)3\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('3BHK');
+    if (/(?<!\d)2\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('2BHK');
+    if (/(?<!\d)1\s*(?:bhk|बीएचके)/i.test(normalizedText)) configsFound.push('1BHK');
     if (
-      (/(?:1|एक)\s*(?:कमरा|रूम|room)\b|सिंगल\s*(?:रूम|कमरा)|1\s*r\b/i.test(normalizedText)) &&
+      (/(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:कमरा|रूम|room|kamra|rm)(?![a-zA-Z\u0900-\u097F])|(?<!\d)1\s*r(?![a-zA-Z0-9])/i.test(normalizedText)) &&
       !configsFound.includes('एक कमरा किचन')
     ) {
       configsFound.push('एक कमरा');
     }
 
     // Double / Triple story houses (e.g. "2 मंजिला मकान", "डबल स्टोरी")
-    if (/(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+    if (/(?<!\d)(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
       configsFound.push('3 मंजिला मकान');
-    } else if (/(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
+    } else if (/(?<!\d)(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(normalizedText)) {
       configsFound.push('2 मंजिला मकान');
     }
 
@@ -540,12 +538,12 @@ export function parsePastedAdText(rawText: string): ParsedAdResult {
     features.push(`साइज: ${sqftFeatureSingle[1]} sqft`);
   }
 
-  // 8. House / Reference Identifier
+  // 8. House / Reference Identifier (never use "वांछित")
   let houseNumber =
     category === 'मकान खरीदना है'
-      ? 'खरीदार (वांछित)'
+      ? 'खरीदार हेतु'
       : isSeeker
-      ? 'किराएदार (वांछित मकान)'
+      ? 'किराएदार हेतु'
       : category === 'दुकान'
       ? 'दुकान'
       : 'H.N. -';
@@ -594,7 +592,11 @@ export function matchesConfigFilter(item: Property, selectedConfig: string): boo
   const itemConfig = (item.config || '').toLowerCase().trim();
   const itemFloor = (item.floor || '').toLowerCase().trim();
   const itemCat = (item.listingCategory || '').toLowerCase().trim();
-  const combined = `${itemConfig} ${itemFloor} ${(item.title || '').toLowerCase()} ${(item.description || '').toLowerCase()}`.replace(/\s+/g, ' ');
+  const itemPurpose = (item.adPurpose || '').toLowerCase().trim();
+  const itemTags = Array.isArray(item.aiTags) ? item.aiTags.join(' ').toLowerCase() : '';
+  const itemFeatures = Array.isArray(item.features) ? item.features.join(' ').toLowerCase() : '';
+
+  const combined = `${itemConfig} ${itemFloor} ${itemCat} ${itemPurpose} ${(item.title || '').toLowerCase()} ${(item.description || '').toLowerCase()} ${itemTags} ${itemFeatures}`.replace(/\s+/g, ' ');
 
   if (itemConfig === target) return true;
 
@@ -603,95 +605,207 @@ export function matchesConfigFilter(item: Property, selectedConfig: string): boo
       return (
         itemConfig === '1r' ||
         itemConfig === '1 room' ||
-        itemConfig.includes('एक कमरा') && !itemConfig.includes('किचन') ||
-        /(?:एक|1)\s*(?:कमरा|रूम|room)\b(?!\s*\+?\s*(?:किचन|kitchen))/i.test(combined)
+        (itemConfig.includes('एक कमरा') && !/(?:किचन|kitchen|kitchan|kichen)/i.test(itemConfig)) ||
+        /(?<!\d)(?:एक|1|वन|सिंगल|one|single|ek)\s*(?:कमरा|रूम|room|kamra|rm)(?![a-zA-Z\u0900-\u097F]|\s*(?:\+|विथ|with|सहित|और|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn))/i.test(combined) ||
+        /(?<!\d)(?<!(?:दो|तीन|चार|पांच|2|3|4|5)\s*)(?:कमरा|रूम)\s*(?:किराए|किराये|खाली|उपलब्ध|चाहिए|चाहिये|चहिये|चहिए|देना|लेना|अटैच\s*(?:लेट|लैट|बाथ))/i.test(combined) ||
+        /(?<!\d)1\s*r(?![a-zA-Z0-9])/i.test(itemConfig)
       );
     case 'एक कमरा किचन':
       return (
         itemConfig === '1rk' ||
         itemConfig.includes('1 room+kitchen') ||
         itemConfig.includes('एक कमरा किचन') ||
-        /(?:1|एक)\s*(?:कमरा|कमरे|रूम|room)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)|1\s*rk\b/i.test(combined)
+        /(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:कमरा|कमरे|रूम|room|kamra|rm)\s*(?:\+|विथ|with|और|सहित|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn)|(?<!\d)1\s*rk(?![a-zA-Z0-9])/i.test(combined)
       );
     case 'एक हॉल':
       return (
         itemConfig === 'एक हॉल' ||
-        (/(?:1|एक)\s*(?:हॉल|हाल|hall)\b/i.test(combined) && !/(?:अटैच|किचन|दुकान)/i.test(itemConfig))
+        itemConfig === 'एक हाल' ||
+        (!/(?:दुकान|shop|dukan)/i.test(itemConfig) &&
+          /(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:हॉल|हाल|hall|haal|hal)(?![a-zA-Z\u0900-\u097F]|\s*(?:\+|विथ|with|सहित|और|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn))/i.test(combined))
       );
     case 'एक हॉल अटैच किचन':
       return (
         itemConfig.includes('एक हॉल अटैच किचन') ||
-        /(?:1|एक)\s*(?:हॉल|हाल|hall)\s*(?:अटैच|attach|attached|विथ|with|सहित|\+)?\s*(?:किचन|रसोई|kitchen)|(?:हॉल|हाल)\s*अटैच\s*किचन/i.test(combined)
+        itemConfig.includes('एक हाल किचन') ||
+        /(?<!\d)(?:1|एक|वन|सिंगल|one|single|ek)\s*(?:हॉल|हाल|hall|haal|hal)\s*(?:\+|विथ|with|और|सहित|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn)|(?:हॉल|हाल|hall|haal)\s*(?:अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn)/i.test(combined)
       );
     case '2 कमरे किचन':
       return (
         itemConfig.includes('2 कमरे किचन') ||
         itemConfig.includes('2 room+kitchen') ||
-        /(?:2|दो)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(combined)
+        /(?<!\d)(?:2|दो|two|do)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)(?:\s*(?:\+|विथ|with|और|सहित|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn))(?![a-zA-Z0-9])/i.test(combined) ||
+        /(?<!\d)(?:2|दो|two|do)\s*(?:कमरे|कमरा|रूम|rooms?|kamre)(?![a-zA-Z\u0900-\u097F]|\s*(?:मंजिल|स्टोरी|bhk))/i.test(combined)
       );
     case '3 कमरे किचन':
       return (
         itemConfig.includes('3 कमरे किचन') ||
         itemConfig.includes('3 room+kitchen') ||
-        /(?:3|तीन)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(combined)
+        /(?<!\d)(?:3|तीन|three|teen)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)(?:\s*(?:\+|विथ|with|और|सहित|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn))(?![a-zA-Z0-9])/i.test(combined) ||
+        /(?<!\d)(?:3|तीन|three|teen)\s*(?:कमरे|कमरा|रूम|rooms?|kamre)(?![a-zA-Z\u0900-\u097F]|\s*(?:मंजिल|स्टोरी|bhk))/i.test(combined)
       );
     case '4 कमरे किचन':
       return (
         itemConfig.includes('4 कमरे किचन') ||
         itemConfig.includes('4 room+kitchen') ||
-        /(?:4|चार)\s*(?:कमरे|कमरा|रूम|rooms?)\s*(?:\+|अटैच|विथ|with|और|सहित)?\s*(?:किचन|रसोई|kitchen)/i.test(combined)
+        /(?<!\d)(?:4|चार|four|char)\s*(?:कमरे|कमरा|रूम|rooms?|kamre|kamra)(?:\s*(?:\+|विथ|with|और|सहित|अटैच|attach(?:ed)?)?\s*(?:किचन|रसोई|kitchen|kitchan|kichen|kitchn))(?![a-zA-Z0-9])/i.test(combined) ||
+        /(?<!\d)(?:4|चार|four|char)\s*(?:कमरे|कमरा|रूम|rooms?|kamre)(?![a-zA-Z\u0900-\u097F]|\s*(?:मंजिल|स्टोरी|bhk))/i.test(combined)
       );
     case '1BHK':
-      return /1\s*(?:bhk|बीएचके)/i.test(combined);
+      return /(?<!\d)1\s*(?:bhk|बीएचके|बी\.एच\.के)/i.test(combined);
     case '2BHK':
-      return /2\s*(?:bhk|बीएचके)/i.test(combined);
+      return /(?<!\d)2\s*(?:bhk|बीएचके|बी\.एच\.के)/i.test(combined);
     case '3BHK':
-      return /3\s*(?:bhk|बीएचके)/i.test(combined);
+      return /(?<!\d)3\s*(?:bhk|बीएचके|बी\.एच\.के)/i.test(combined);
     case '4BHK':
-      return /4\s*(?:bhk|बीएचके)/i.test(combined);
+      return /(?<!\d)4\s*(?:bhk|बीएचके|बी\.एच\.के)/i.test(combined);
     case '5BHK':
-      return /5\s*(?:bhk|बीएचके)/i.test(combined);
+      return /(?<!\d)5\s*(?:bhk|बीएचके|बी\.एच\.के)/i.test(combined);
     case '2 मंजिला मकान':
-      return /(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(combined);
+      return /(?<!\d)(?:2|दो|डबल|double)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey|manjil|manjila)/i.test(combined);
     case '3 मंजिला मकान':
-      return /(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey)/i.test(combined);
+      return /(?<!\d)(?:3|तीन|ट्रिपल|triple)\s*(?:मंजिला|मंज़िला|मंजिल|मंज़िल|स्टोरी|story|storey|manjil|manjila)/i.test(combined);
     case 'ग्राउंड फ्लोर':
       return /ग्राउंड\s*फ्लोर|ground\s*floor/i.test(combined);
     case '1st फ्लोर':
-      return /1st\s*(?:फ्लोर|floor)|फर्स्ट\s*फ्लोर|पहली\s*मंजिल/i.test(combined);
+      return /(?<!\d)1st\s*(?:फ्लोर|floor)|फर्स्ट\s*फ्लोर|first\s*floor|पहली\s*मंजिल|पहला\s*फ्लोर/i.test(combined);
     case '2nd फ्लोर':
-      return /2nd\s*(?:फ्लोर|floor)|सेकंड\s*फ्लोर|दूसरी\s*मंजिल/i.test(combined);
+      return /(?<!\d)2nd\s*(?:फ्लोर|floor)|सेकंड\s*फ्लोर|सेकण्ड\s*फ्लोर|second\s*floor|दूसरी\s*मंजिल|दूसरा\s*फ्लोर/i.test(combined);
     case '3rd फ्लोर':
-      return /3rd\s*(?:फ्लोर|floor)|थर्ड\s*फ्लोर|तीसरी\s*मंजिल/i.test(combined);
+      return /(?<!\d)3rd\s*(?:फ्लोर|floor)|थर्ड\s*फ्लोर|third\s*floor|तीसरी\s*मंजिल|तीसरा\s*फ्लोर/i.test(combined);
     case 'ऑफिस स्पेस':
-      return /ऑफिस|office/i.test(combined);
+      return /ऑफिस|ऑफ़िस|office/i.test(combined);
     case 'दुकान ग्राउंड फ्लोर':
       return (
         itemConfig === 'दुकान ग्राउंड फ्लोर' ||
-        ((itemCat === 'दुकान' || itemConfig.includes('दुकान')) && /ग्राउंड\s*फ्लोर|ground\s*floor/i.test(combined))
+        ((itemCat === 'दुकान' || /दुकान|shop|dukan|शॉप/i.test(combined)) && /ग्राउंड\s*फ्लोर|ground\s*floor|शटर/i.test(combined))
       );
     case 'दुकान 1st फ्लोर':
       return (
         itemConfig === 'दुकान 1st फ्लोर' ||
-        ((itemCat === 'दुकान' || itemConfig.includes('दुकान')) && /1st|फर्स्ट|first\s*floor/i.test(combined))
+        ((itemCat === 'दुकान' || /दुकान|shop|dukan|शॉप/i.test(combined)) && /(?<!\d)1st|फर्स्ट|first\s*floor|पहली\s*मंजिल/i.test(combined))
       );
     case 'बड़ा हॉल दुकान के लिए':
       return (
         itemConfig.includes('बड़ा हॉल दुकान') ||
         itemConfig.includes('बड़ा हॉल दुकान') ||
-        /(?:बड़ा|बड़ा|big|large)?\s*(?:हॉल|हाल).*दुकान|दुकान.*(?:हॉल|हाल)/i.test(combined)
+        /(?:बड़ा|बड़ा|big|large|विशाल)\s*(?:हॉल|हाल|hall|haal).*(?:दुकान|शोरूम|कमर्शियल|shop|dukan)|(?:दुकान|शोरूम|कमर्शियल|shop|dukan).*(?:हॉल|हाल|hall|haal)/i.test(combined)
       );
     case 'गोडाउन':
       return /गोडाउन|गोदाम|godown|warehouse/i.test(combined);
     case 'मल्टी फ्लोर गोडाउन':
-      return /मल्टी\s*फ्लोर\s*(?:गोडाउन|गोदाम)|multi\s*floor\s*(?:godown|warehouse)/i.test(combined);
+      return /(?:मल्टी\s*(?:फ्लोर|मंजिल)|multi\s*floor).*(?:गोडाउन|गोदाम|godown|warehouse)|(?:गोडाउन|गोदाम|godown|warehouse).*(?:मल्टी|multi|फ्लोर|मंजिल)/i.test(combined);
     case 'मल्टी मे फ्लेट':
-      return /मल्टी\s*(?:मे|में)?\s*(?:फ्लेट|फ्लैट)|multi\s*flat/i.test(combined);
+      return /मल्टी\s*(?:मे|में)?\s*(?:फ्लेट|फ्लैट|flat|flet)|multi\s*(?:me|mein)?\s*(?:flat|flet)/i.test(combined);
     case 'टावर मे फ्लेट':
-      return /टावर\s*(?:मे|में)?\s*(?:फ्लेट|फ्लैट)|tower\s*flat/i.test(combined);
+      return /टावर\s*(?:मे|में)?\s*(?:फ्लेट|फ्लैट|flat|flet)|tower\s*(?:me|mein)?\s*(?:flat|flet)/i.test(combined);
+    case 'दुकान (Shop)':
+      return itemCat === 'दुकान' || /दुकान|shop|dukan|शॉप/i.test(combined);
+    case 'कमर्शियल स्पेस':
+      return itemCat === 'दुकान' || /कमर्शियल|कॉमरशियल|commercial|शोरूम|showroom|गोडाउन|गोदाम|ऑफिस|दुकान|shop|dukan/i.test(combined);
     default:
-      return itemConfig.includes(target) || itemFloor.includes(target);
+      return combined.includes(target);
   }
+}
+
+/**
+ * Matches property against selected colonies by checking stored colony field
+ * as well as Hindi/English locality aliases inside description/title/landmark
+ * so As-It-Is raw ads mentioning multiple colonies match all relevant filters.
+ */
+export function matchesColonyFilter(item: Property, selectedColonies: string[]): boolean {
+  if (!selectedColonies || selectedColonies.length === 0) return true;
+
+  const itemColony = (item.colony || '').toLowerCase();
+  const fullText = `${item.colony || ''} ${item.landmark || ''} ${item.title || ''} ${item.description || ''}`.toLowerCase();
+
+  return selectedColonies.some((col) => {
+    const colLower = col.toLowerCase();
+    if (itemColony.includes(colLower) || colLower.includes(itemColony)) {
+      return true;
+    }
+
+    const baseHindi = col.split('(')[0].trim().toLowerCase();
+    if (baseHindi && fullText.includes(baseHindi)) {
+      return true;
+    }
+
+    const engMatch = col.match(/\(([^)]+)\)/);
+    if (engMatch && engMatch[1] && fullText.includes(engMatch[1].trim().toLowerCase())) {
+      return true;
+    }
+
+    // Check rich alias patterns (e.g. टिचर्स -> शिक्षक कालोनी, इंदिरानगर -> इंदिरा नगर)
+    const pattern = NEEMUCH_LOCALITY_PATTERNS.find((p) => p.value === col);
+    if (pattern && pattern.regex.test(fullText)) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+/**
+ * Matches free-text search queries across Hindi and Hinglish room/locality synonyms.
+ */
+export function matchesSearchQuery(item: Property, rawTerm: string): boolean {
+  const term = (rawTerm || '').toLowerCase().trim();
+  if (!term) return true;
+
+  const haystack = [
+    item.title,
+    item.listingCategory,
+    item.adPurpose,
+    item.colony,
+    item.houseNumber,
+    item.config,
+    item.floor,
+    item.contactNumber,
+    item.whatsappNumber,
+    item.description,
+    item.landmark,
+    ...(Array.isArray(item.features) ? item.features : []),
+    ...(Array.isArray(item.aiTags) ? item.aiTags : []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (haystack.includes(term)) return true;
+
+  // Cross-match common Hindi <-> English/Hinglish search terms
+  if (/^(?:1\s*room|1\s*r|1\s*kamra|ek\s*kamra|एक\s*कमरा|1\s*कमरा|1\s*रूम|एक\s*रूम)$/i.test(term)) {
+    return matchesConfigFilter(item, 'एक कमरा');
+  }
+  if (/^(?:1\s*rk|1\s*room\s*kitch[ae]n|एक\s*कमरा\s*किचन|1\s*रूम\s*किचन)$/i.test(term)) {
+    return matchesConfigFilter(item, 'एक कमरा किचन');
+  }
+  if (/^(?:1\s*ha?al|1\s*hall|ek\s*ha?al|एक\s*ह[ॉा]ल)$/i.test(term)) {
+    return matchesConfigFilter(item, 'एक हॉल');
+  }
+  if (/^(?:1\s*ha?al\s*kitch[ae]n|1\s*hall\s*kitch[ae]n|एक\s*ह[ॉा]ल\s*(?:अटैच\s*)?किचन)$/i.test(term)) {
+    return matchesConfigFilter(item, 'एक हॉल अटैच किचन');
+  }
+  if (/^(?:2\s*room\s*kitch[ae]n|2\s*कमरे\s*किचन)$/i.test(term)) {
+    return matchesConfigFilter(item, '2 कमरे किचन');
+  }
+  if (/^(?:3\s*room\s*kitch[ae]n|3\s*कमरे\s*किचन)$/i.test(term)) {
+    return matchesConfigFilter(item, '3 कमरे किचन');
+  }
+  if (/^(?:4\s*room\s*kitch[ae]n|4\s*कमरे\s*किचन)$/i.test(term)) {
+    return matchesConfigFilter(item, '4 कमरे किचन');
+  }
+  if (/^(?:shop|dukan|दुकान)$/i.test(term)) {
+    return matchesConfigFilter(item, 'दुकान (Shop)');
+  }
+  if (/^(?:godown|गोडाउन|गोदाम)$/i.test(term)) {
+    return matchesConfigFilter(item, 'गोडाउन');
+  }
+  if (/^(?:office|ऑफिस)$/i.test(term)) {
+    return matchesConfigFilter(item, 'ऑफिस स्पेस');
+  }
+
+  return false;
 }
 
 export const SAMPLE_USER_AD = `नीमच म. प्र.

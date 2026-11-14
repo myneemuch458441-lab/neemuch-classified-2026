@@ -22,7 +22,8 @@ export const NEEMUCH_COLONIES = [
   'इंदिरा नगर (Indira Nagar)',
   'नीमच सिटी (Neemuch City)',
   'कनावटी रोड (Kanawati Road)',
-  'गोकुल धाम कॉलोनी (Gokul Dham)'
+  'गोकुल धाम कॉलोनी (Gokul Dham)',
+  'जवाहर नगर (Jawahar Nagar)'
 ];
 
 export const LISTING_CATEGORIES: ListingCategory[] = [

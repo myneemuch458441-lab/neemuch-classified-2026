@@ -99,28 +99,66 @@ export function subscribeToProperties(
         }
 
         const rentVal = Number(data.rent) || 0;
+        const aiTagsArr: string[] = Array.isArray(data.aiTags) ? data.aiTags : [];
+        const isQuickPasteOrRaw = Boolean(data.isRawAd) || aiTagsArr.includes('क्विक पेस्ट');
+
+        // Clean any legacy "वांछित" word anywhere in stored fields
+        const cleanVanchhit = (val: string) =>
+          (val || '')
+            .replace(/किराएदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'किराएदार हेतु')
+            .replace(/खरीदार\s*\(?\s*वांछित\s*(?:मकान)?\s*\)?/gi, 'खरीदार हेतु')
+            .replace(/\(?\s*वांछित\s*(?:मकान|क्षेत्र)?\s*\)?/gi, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+
+        let cleanedHouseNum = cleanVanchhit(data.houseNumber || '');
+        let cleanedTitle = cleanVanchhit(data.title || '');
+        let cleanedColony = data.colony || '';
+        let cleanedLandmark = data.landmark || '';
+        let cleanedConfig = data.config || 'विवरण अनुसार';
+        let cleanedFloor = data.floor || '';
+        const descStr = data.description || '';
+
+        if (isQuickPasteOrRaw) {
+          // If colony or landmark got polluted with room/kitchen text, replace cleanly
+          const roomNoiseRegex = /(?:रूम|किचन|लैट|लेट|बाथ|bhk|फैमिली|फेमिली|संपर्क|सम्पर्क)/i;
+          if (roomNoiseRegex.test(cleanedColony)) {
+            cleanedColony = 'नीमच (मूल विज्ञापन देखें)';
+          }
+          if (roomNoiseRegex.test(cleanedLandmark)) {
+            cleanedLandmark = '';
+          }
+          // If config was auto-guessed as 2BHK/1RK when NOT actually written in description, drop fake config
+          if (/^2\s*bhk$/i.test(cleanedConfig) && !/2\s*(?:bhk|बीएचके)/i.test(descStr)) {
+            cleanedConfig = 'मूल विज्ञापन';
+          }
+          if (/^ग्राउंड\s*फ्लोर$/i.test(cleanedFloor) && !/(?:ग्राउंड\s*फ्लोर|ground\s*floor)/i.test(descStr)) {
+            cleanedFloor = '';
+          }
+        }
 
         return {
           id: d.id,
-          title: data.title || '',
+          title: cleanedTitle,
           listingCategory: category,
-          adPurpose: data.adPurpose || '',
-          colony: data.colony || '',
-          houseNumber: data.houseNumber || '',
-          config: data.config || 'विवरण अनुसार',
-          floor: data.floor || '',
+          adPurpose: cleanVanchhit(data.adPurpose || ''),
+          colony: cleanedColony,
+          houseNumber: cleanedHouseNum,
+          config: cleanedConfig,
+          floor: cleanedFloor,
           rent: rentVal,
           priceDisplay: data.priceDisplay || '',
           priceType: defaultPriceType,
           contactNumber: data.contactNumber || '+91-7999646575',
           whatsappNumber: data.whatsappNumber || '917999646575',
-          description: data.description || '',
+          description: descStr,
           imageUrl: '', // Always empty - no photos on screen
           aiDetected: Boolean(data.aiDetected),
           aiConfidence: data.aiConfidence ? Number(data.aiConfidence) : undefined,
-          aiTags: Array.isArray(data.aiTags) ? data.aiTags : [],
+          aiTags: aiTagsArr,
+          isRawAd: isQuickPasteOrRaw,
           features: Array.isArray(data.features) ? data.features : [],
-          landmark: data.landmark || '',
+          landmark: cleanedLandmark,
           photos: Array.isArray(data.photos) ? data.photos : [],
           posterAd: data.posterAd || undefined,
           available: data.available !== false && String(data.available).toLowerCase() !== 'false' && data.status !== 'booked',

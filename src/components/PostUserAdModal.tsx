@@ -150,11 +150,15 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
   // Tab Mode: 'quick_paste' (Default - No Form!) or 'detailed_form'
   const [activeTab, setActiveTab] = useState<'quick_paste' | 'detailed_form'>('quick_paste');
 
+  // As-It-Is Mode: ON by default so pasted ads display verbatim without AI rewriting
+  const [asItIsMode, setAsItIsMode] = useState(true);
+  const [showOptionalEditBoxes, setShowOptionalEditBoxes] = useState(false);
+
   // Quick Paste States (All auto-detected fields are editable before final submit)
   const [pastedText, setPastedText] = useState('');
   const [qpCategory, setQpCategory] = useState<ListingCategory>('मकान किराए हेतु');
   const [qpAdPurpose, setQpAdPurpose] = useState<string>('मकान किराए से देना है (मकान मालिक)');
-  const [qpConfig, setQpConfig] = useState<string>('विवरण अनुसार');
+  const [qpConfig, setQpConfig] = useState<string>('मूल विज्ञापन');
   const [qpCustomConfig, setQpCustomConfig] = useState<string>('');
   const [qpFloor, setQpFloor] = useState<string>('');
   const [qpColony, setQpColony] = useState<string>('');
@@ -296,7 +300,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
     }
   };
 
-  // Quick Paste Submit Handler (uses user-edited box values!)
+  // Quick Paste Submit Handler (preserves exact As-It-Is ad by default without AI alterations!)
   const handleQuickPasteSubmit = async () => {
     setErrorMsg('');
 
@@ -314,11 +318,23 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
 
     const cleanContact = `+91-${finalPhone.slice(-10)}`;
     const cleanWa = `91${finalPhone.slice(-10)}`;
-    const finalColony = qpColony.trim() || parsedAd.colony || 'नीमच शहर (Neemuch City)';
+
     const resolvedConfig = (qpConfig === '__custom__' ? qpCustomConfig.trim() : qpConfig.trim()) || 'विवरण अनुसार';
-    const finalConfig = resolvedConfig.slice(0, 28);
-    const finalFloor = qpFloor.trim();
-    const finalLandmark = qpLandmark.trim();
+    const finalConfig = asItIsMode
+      ? (dirtyFields.config ? resolvedConfig.slice(0, 28) : 'मूल विज्ञापन')
+      : resolvedConfig.slice(0, 28);
+
+    const finalColony = asItIsMode
+      ? (dirtyFields.colony && qpColony.trim() ? qpColony.trim() : 'नीमच (मूल विज्ञापन देखें)')
+      : (qpColony.trim() || parsedAd.colony || 'नीमच शहर (Neemuch City)');
+
+    const finalFloor = asItIsMode
+      ? (dirtyFields.floor ? qpFloor.trim() : '')
+      : qpFloor.trim();
+
+    const finalLandmark = asItIsMode
+      ? (dirtyFields.landmark ? qpLandmark.trim() : '')
+      : qpLandmark.trim();
 
     const activePurposes = AD_PURPOSE_OPTIONS[qpCategory] || [];
     const matchedPurposeObj = activePurposes.find((p) => p.label === qpAdPurpose);
@@ -326,19 +342,29 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       qpCategory === 'मकान खरीदना है' ||
       (matchedPurposeObj ? matchedPurposeObj.role === 'seeker' : parsedAd.isSeeker);
 
-    const finalHouseNumber =
-      qpHouseNumber.trim() ||
-      (qpCategory === 'मकान खरीदना है'
-        ? 'खरीदार (वांछित)'
+    const defaultRoleIdentifier =
+      qpCategory === 'मकान खरीदना है'
+        ? 'खरीदार हेतु'
         : isFinalSeeker
-        ? 'किराएदार (वांछित)'
+        ? 'किराएदार हेतु'
         : qpCategory === 'दुकान'
         ? 'दुकान'
-        : 'H.N. -');
+        : asItIsMode
+        ? 'मूल विज्ञापन'
+        : 'H.N. -';
+
+    const finalHouseNumber = asItIsMode
+      ? (dirtyFields.houseNumber && qpHouseNumber.trim() ? qpHouseNumber.trim() : defaultRoleIdentifier)
+      : (qpHouseNumber.trim() || defaultRoleIdentifier);
 
     const numericRent = Number(qpRent);
-    const finalRent = !Number.isNaN(numericRent) && numericRent > 0 ? numericRent : 0;
-    const rawPriceDisplay = qpPriceDisplay.trim();
+    const finalRent = asItIsMode
+      ? (dirtyFields.rent && !Number.isNaN(numericRent) && numericRent > 0 ? numericRent : 0)
+      : (!Number.isNaN(numericRent) && numericRent > 0 ? numericRent : 0);
+
+    const rawPriceDisplay = asItIsMode
+      ? (dirtyFields.priceDisplay ? qpPriceDisplay.trim() : '')
+      : qpPriceDisplay.trim();
     const finalPriceDisplay = rawPriceDisplay
       ? (/^[₹0-9]/.test(rawPriceDisplay) ? (rawPriceDisplay.startsWith('₹') ? rawPriceDisplay : `₹${rawPriceDisplay}`) : rawPriceDisplay)
       : '';
@@ -350,9 +376,23 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       else if (qpCategory === 'मकान बेचना है') finalPriceType = 'बिक्री मूल्य';
     }
 
+    const firstMeaningfulLine =
+      raw
+        .split('\n')
+        .map((l) => l.trim())
+        .find((l) => l.length > 0 && !/^(?:नीमच\s*म\.?\s*प्र\.?|neemuch\s*m\.?\s*p\.?)$/i.test(l)) ||
+      raw.split('\n')[0]?.trim() ||
+      qpCategory;
+
     const shortArea = finalColony.split('(')[0].trim() || finalColony;
-    const configInTitle = finalConfig && finalConfig !== 'विवरण अनुसार' ? ` ${finalConfig}` : '';
-    const generatedTitle = `[${qpAdPurpose.split('(')[0].trim()}]${configInTitle} - ${shortArea}`.slice(0, 140);
+    const configInTitle = finalConfig && finalConfig !== 'विवरण अनुसार' && finalConfig !== 'मूल विज्ञापन' ? ` ${finalConfig}` : '';
+    const generatedTitle = asItIsMode
+      ? firstMeaningfulLine.slice(0, 140)
+      : `[${qpAdPurpose.split('(')[0].trim()}]${configInTitle} - ${shortArea}`.slice(0, 140);
+
+    const finalFeatures = asItIsMode
+      ? (dirtyFields.features ? qpFeatures : [])
+      : (qpFeatures.length > 0 ? qpFeatures : []);
 
     const propertyPayload: Omit<Property, 'id'> = {
       title: generatedTitle,
@@ -371,16 +411,17 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       imageUrl: '',
       photos: uploadedPhotos,
       aiDetected: false,
+      isRawAd: asItIsMode,
       aiConfidence: 1.0,
       aiTags: [
         'पब्लिक विज्ञापन',
         'क्विक पेस्ट',
+        asItIsMode ? 'मूल विज्ञापन' : 'ऑटो-एडिट',
         qpCategory,
         qpAdPurpose,
-        isFinalSeeker ? 'किराएदार / खरीदार' : 'मालिक',
-        shortArea.split(' ')[0]
+        isFinalSeeker ? 'किराएदार / खरीदार' : 'मालिक'
       ],
-      features: qpFeatures.length > 0 ? qpFeatures : ['बिजली-पानी व्यवस्था'],
+      features: finalFeatures,
       landmark: finalLandmark,
       available: true,
       createdAt: new Date().toISOString(),
@@ -482,9 +523,9 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
       houseNumber:
         houseNumber.trim() ||
         (listingCategory === 'मकान खरीदना है'
-          ? 'खरीदार (वांछित)'
+          ? 'खरीदार हेतु'
           : isSeeker
-          ? 'किराएदार / वांछित क्षेत्र'
+          ? 'किराएदार हेतु'
           : listingCategory === 'दुकान'
           ? 'दुकान'
           : 'H.N. -'),
@@ -640,17 +681,17 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
             /* TAB 1: QUICK PASTE (NO FORM!) */
             <div className="space-y-4">
               {/* Instructions banner */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-indigo-950/40 border border-amber-500/30 space-y-1.5">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-emerald-950/40 border border-amber-500/35 space-y-1.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <h4 className="text-xs sm:text-sm font-extrabold text-amber-300 flex items-center gap-1.5">
-                    <span>💡 सिर्फ कॉपी करके यहाँ पेस्ट करें — कोई फॉर्म नहीं भरना है!</span>
+                    <span>📌 मूल विज्ञापन जैसा का तैसा (As-It-Is) — कोई बदलाव नहीं!</span>
                   </h4>
                   <span className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                    10 सेकंड में लाइव
+                    100% आपके शब्द
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  आप अपने मोबाइल के नोट बुक या व्हाट्सएप पर जो विज्ञापन लिखकर रखते हैं, उसे बस नीचे दिए गए बॉक्स में पेस्ट कर दें।
+                  आप अपना विज्ञापन जैसा कॉपी करके यहाँ पेस्ट करेंगे, वेबसाइट पर <strong className="text-white">बिना किसी AI फेरबदल के बिल्कुल वैसा ही (As-It-Is)</strong> दिखेगा।
                 </p>
               </div>
 
@@ -705,40 +746,169 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                     setPastedText(e.target.value);
                     if (errorMsg) setErrorMsg('');
                   }}
-                  rows={8}
-                  placeholder={`यहाँ अपना विज्ञापन पेस्ट करें... जैसे:\n\nनीमच म. प्र.\nमकान किराए से देना है \nएक हॉल अटैच किचन लेट्रिन-बाथ फर्नीचर सहित \nलोकेशन :- भगवानपुरा चौराहा,\nसम्पर्क :- 99260XXXXX`}
+                  rows={7}
+                  placeholder={`यहाँ अपना विज्ञापन पेस्ट करें... जैसे:\n\nमकान किराए पर चाहिए\nटिचर्स कॉलोनी, जवाहर नगर, इंदिरानगर, हुडको कॉलोनी\n1 रूम किचन लैट बाथ\nछोटी फैमिली हेतु\nसंपर्क :- 7566XXXXXX`}
                   className="w-full p-3.5 sm:p-4 rounded-2xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 text-white placeholder-slate-500 text-xs sm:text-sm leading-relaxed outline-none transition-all resize-y shadow-inner font-sans"
                 />
               </div>
 
-              {/* Real-Time Live Extraction Card - ALL BOXES DIRECTLY EDITABLE */}
-              {pastedText.trim().length > 5 && (
+              {/* Live As-It-Is Preview + Essential Category & Phone Confirmation */}
+              {pastedText.trim().length > 3 && (
                 <div className="p-4 rounded-2xl bg-slate-950/95 border border-emerald-500/40 space-y-3.5 animate-in fade-in duration-200 shadow-lg">
+                  {/* Top Bar: As-It-Is Mode Toggle */}
                   <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-800 pb-2.5">
                     <div>
                       <span className="text-xs sm:text-sm font-extrabold text-emerald-400 flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-                        <span>विज्ञापन स्वतः विश्लेषण (Live Auto-Detection — जांचें व एडिट करें):</span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          {asItIsMode
+                            ? 'लाइव प्रीव्यू — आपका विज्ञापन बिल्कुल ऐसा ही दिखेगा (As-It-Is)'
+                            : 'ऑटो-एडिट मोड — सभी बॉक्स जांचें व सुधारें'}
+                        </span>
                       </span>
-                      <p className="text-[11px] text-amber-300/90 mt-0.5 flex items-center gap-1">
-                        <Edit3 className="w-3 h-3 shrink-0" />
-                        <span>अगर AI द्वारा कोई जानकारी गलत भरी गई हो, तो नीचे किसी भी बॉक्स में सीधे बदलकर ही सबमिट करें।</span>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {asItIsMode
+                          ? 'AI आपके विज्ञापन में 2BHK, ग्राउंड फ्लोर या कोई भी नकली जानकारी नहीं जोड़ेगा।'
+                          : 'यदि आप नीचे दिए सभी बॉक्स मैन्युअल भरना चाहते हैं तो उन्हें एडिट कर सकते हैं।'}
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      onClick={handleRedetectFromText}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
-                      title="टेक्स्ट से सभी बॉक्स पुनः स्वतः भरें"
+                      onClick={() => {
+                        const next = !asItIsMode;
+                        setAsItIsMode(next);
+                        if (!next) setShowOptionalEditBoxes(true);
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                        asItIsMode
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                      }`}
                     >
-                      <RotateCcw className="w-3 h-3 text-emerald-400" />
-                      <span>पुनः ऑटो-भरें</span>
+                      <span>{asItIsMode ? '📌 मूल विज्ञापन (As-It-Is) सक्रिय ✓' : '✍️ विस्तृत एडिट मोड सक्रिय'}</span>
                     </button>
                   </div>
 
-                  {/* Editable Boxes Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Verbatim Live Preview Box */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/95 border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold">
+                        {qpCategory}
+                      </span>
+                      <span className="text-[11px] text-cyan-300 font-semibold">
+                        {qpAdPurpose}
+                      </span>
+                    </div>
+                    <div className="text-xs sm:text-sm text-white whitespace-pre-line leading-relaxed font-sans bg-slate-950/70 p-3 rounded-lg border border-slate-800">
+                      {pastedText.trim()}
+                    </div>
+                  </div>
+
+                  {/* Quick Essential Confirmation Row: Category + Purpose + Mobile */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300 font-bold">श्रेणी चुनें (फ़िल्टर हेतु):</label>
+                      <select
+                        value={qpCategory}
+                        onChange={(e) => {
+                          const newCat = e.target.value as ListingCategory;
+                          setQpCategory(newCat);
+                          markDirty('category');
+                          const opts = AD_PURPOSE_OPTIONS[newCat] || [];
+                          if (opts.length > 0) {
+                            setQpAdPurpose(opts[0].label);
+                            markDirty('adPurpose');
+                          }
+                          if (newCat === 'मकान खरीदना है') {
+                            setQpPriceType('बजट');
+                            markDirty('priceType');
+                          } else if (newCat === 'मकान बेचना है') {
+                            setQpPriceType('बिक्री मूल्य');
+                            markDirty('priceType');
+                          } else if (newCat === 'गिरवी मकान') {
+                            setQpPriceType('गिरवी राशि');
+                            markDirty('priceType');
+                          } else {
+                            setQpPriceType('प्रति माह');
+                            markDirty('priceType');
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 focus:border-amber-400 text-amber-300 font-bold text-xs outline-none"
+                      >
+                        <option value="मकान किराए हेतु">मकान किराए हेतु</option>
+                        <option value="गिरवी मकान">गिरवी मकान</option>
+                        <option value="दुकान">दुकान (Shop / गोडाउन / ऑफिस)</option>
+                        <option value="मकान बेचना है">मकान बेचना है (विक्रेता)</option>
+                        <option value="मकान खरीदना है">मकान खरीदना है (खरीदार)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300 font-bold">प्रकार (मालिक / किराएदार):</label>
+                      <select
+                        value={qpAdPurpose}
+                        onChange={(e) => {
+                          setQpAdPurpose(e.target.value);
+                          markDirty('adPurpose');
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 focus:border-amber-400 text-cyan-300 font-semibold text-xs outline-none"
+                      >
+                        {(AD_PURPOSE_OPTIONS[qpCategory] || []).map((opt) => (
+                          <option key={opt.label} value={opt.label}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-slate-300 font-bold">संपर्क मोबाइल नं. *:</label>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={qpPhone}
+                        onChange={(e) => {
+                          setQpPhone(e.target.value.replace(/[^0-9]/g, ''));
+                          markDirty('phone');
+                        }}
+                        placeholder="10 अंकों का मोबाइल नंबर"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 focus:border-emerald-400 text-emerald-400 font-black font-mono text-xs outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Collapsible Toggle for Optional Extra Edit Boxes */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowOptionalEditBoxes((prev) => !prev)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                      <span>
+                        {showOptionalEditBoxes
+                          ? '▲ अतिरिक्त एडिट बॉक्स छुपाएं'
+                          : '⚙️ अतिरिक्त फ़िल्टर / डिटेल एडिट करें (वैकल्पिक)'}
+                      </span>
+                    </button>
+
+                    {showOptionalEditBoxes && (
+                      <button
+                        type="button"
+                        onClick={handleRedetectFromText}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                        title="टेक्स्ट से सभी बॉक्स पुनः स्वतः भरें"
+                      >
+                        <RotateCcw className="w-3 h-3 text-emerald-400" />
+                        <span>पुनः ऑटो-भरें</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Editable Boxes Grid (Shown only when user expands or disables As-It-Is mode) */}
+                  {(showOptionalEditBoxes || !asItIsMode) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1 border-t border-slate-800">
                     {/* Box 1: विज्ञापन प्रकार (Category & Ad Purpose - Editable) */}
                     <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
                       <div className="flex items-center justify-between">
@@ -983,99 +1153,102 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  {/* Box 5: पहचानी गई / चयनित सुविधाएं (Editable Amenities Tags) */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                      <span className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
-                        <Edit3 className="w-3 h-3 text-cyan-400" />
-                        <span>सुविधाएं (पहचानी गई / एडिट करें — {qpFeatures.length}):</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400">हटाने के लिए × दबाएं या नई जोड़ें</span>
-                    </div>
-
-                    {qpFeatures.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {qpFeatures.map((feat, idx) => (
-                          <span
-                            key={`${feat}-${idx}`}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-950 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium"
-                          >
-                            <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                            <span>{feat}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setQpFeatures(qpFeatures.filter((_, i) => i !== idx));
-                                markDirty('features');
-                              }}
-                              className="ml-0.5 text-slate-400 hover:text-rose-400 cursor-pointer"
-                              title="सुविधा हटाएं"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
+                  {/* Box 5 only visible inside expanded optional panel */}
+                  {(showOptionalEditBoxes || !asItIsMode) && (
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="text-[11px] text-slate-300 font-bold flex items-center gap-1">
+                          <Edit3 className="w-3 h-3 text-cyan-400" />
+                          <span>सुविधाएं (पहचानी गई / एडिट करें — {qpFeatures.length}):</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400">हटाने के लिए × दबाएं या नई जोड़ें</span>
                       </div>
-                    )}
 
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val && !qpFeatures.includes(val)) {
-                            setQpFeatures([...qpFeatures, val]);
-                            markDirty('features');
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-slate-300 text-[11px] outline-none"
-                      >
-                        <option value="">+ सूची से सुविधा जोड़ें...</option>
-                        {COMMON_FEATURES.filter((f) => !qpFeatures.includes(f)).map((f) => (
-                          <option key={f} value={f}>
-                            {f}
-                          </option>
-                        ))}
-                      </select>
+                      {qpFeatures.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {qpFeatures.map((feat, idx) => (
+                            <span
+                              key={`${feat}-${idx}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-950 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium"
+                            >
+                              <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span>{feat}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQpFeatures(qpFeatures.filter((_, i) => i !== idx));
+                                  markDirty('features');
+                                }}
+                                className="ml-0.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                                title="सुविधा हटाएं"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
-                      <div className="flex items-center gap-1 flex-1 min-w-[160px]">
-                        <input
-                          type="text"
-                          value={qpNewFeatureInput}
-                          onChange={(e) => setQpNewFeatureInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val && !qpFeatures.includes(val)) {
+                              setQpFeatures([...qpFeatures, val]);
+                              markDirty('features');
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-slate-300 text-[11px] outline-none"
+                        >
+                          <option value="">+ सूची से सुविधा जोड़ें...</option>
+                          {COMMON_FEATURES.filter((f) => !qpFeatures.includes(f)).map((f) => (
+                            <option key={f} value={f}>
+                              {f}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center gap-1 flex-1 min-w-[160px]">
+                          <input
+                            type="text"
+                            value={qpNewFeatureInput}
+                            onChange={(e) => setQpNewFeatureInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const val = qpNewFeatureInput.trim();
+                                if (val && !qpFeatures.includes(val)) {
+                                  setQpFeatures([...qpFeatures, val]);
+                                  setQpNewFeatureInput('');
+                                  markDirty('features');
+                                }
+                              }
+                            }}
+                            placeholder="कोई अन्य सुविधा लिखें..."
+                            className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-white text-[11px] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
                               const val = qpNewFeatureInput.trim();
                               if (val && !qpFeatures.includes(val)) {
                                 setQpFeatures([...qpFeatures, val]);
                                 setQpNewFeatureInput('');
                                 markDirty('features');
                               }
-                            }
-                          }}
-                          placeholder="कोई अन्य सुविधा लिखें..."
-                          className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-white text-[11px] outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const val = qpNewFeatureInput.trim();
-                            if (val && !qpFeatures.includes(val)) {
-                              setQpFeatures([...qpFeatures, val]);
-                              setQpNewFeatureInput('');
-                              markDirty('features');
-                            }
-                          }}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>जोड़ें</span>
-                        </button>
+                            }}
+                            className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>जोड़ें</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -1285,7 +1458,7 @@ export const PostUserAdModal: React.FC<PostUserAdModalProps> = ({
               {/* Amenities Selection (17 separated options) */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-200">
-                  उपलब्ध / वांछित सुविधाएं ({selectedFeatures.length} चयनित):
+                  उपलब्ध / आवश्यक सुविधाएं ({selectedFeatures.length} चयनित):
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto p-2 rounded-xl bg-slate-950 border border-slate-800">
                   {COMMON_FEATURES.map((feat) => {

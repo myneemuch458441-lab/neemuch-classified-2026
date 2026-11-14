@@ -27,9 +27,9 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
-import { Property, PropertyConfig, ListingCategory, PosterAd } from './types/property';
+import { Property, PropertyConfig, ListingCategory, PosterAd, PROPERTY_CONFIG_OPTIONS } from './types/property';
 import { NEEMUCH_COLONIES, LISTING_CATEGORIES } from './data/seedProperties';
-import { matchesConfigFilter } from './utils/adTextParser';
+import { matchesConfigFilter, matchesColonyFilter, matchesSearchQuery } from './utils/adTextParser';
 import {
   subscribeToProperties,
   addProperty,
@@ -176,12 +176,11 @@ export default function App() {
     return counts;
   }, [properties]);
 
-  // Filter properties based on category, search query, config, colony, and availability
-  const filteredProperties = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
+  // Properties filtered by everything EXCEPT selectedConfig (used to compute live config filter counts)
+  const preConfigFilteredProperties = useMemo(() => {
+    const term = searchTerm.trim();
 
     return properties.filter((item) => {
-      // Category Filter (मकान किराए हेतु, गिरवी मकान, दुकान, मकान बेचना है)
       if (selectedCategory !== 'All') {
         const itemCat = item.listingCategory || 'मकान किराए हेतु';
         if (itemCat !== selectedCategory) {
@@ -189,22 +188,12 @@ export default function App() {
         }
       }
 
-      // Configuration Filter (smart matching across config, floor, title & description)
-      if (selectedConfig !== 'All') {
-        if (!matchesConfigFilter(item, selectedConfig)) {
+      if (selectedColonies.length > 0 && selectedColonies.length < NEEMUCH_COLONIES.length) {
+        if (!matchesColonyFilter(item, selectedColonies)) {
           return false;
         }
       }
 
-      // Colony Filter
-      if (selectedColonies.length > 0 && selectedColonies.length < NEEMUCH_COLONIES.length) {
-        const matchesColony = selectedColonies.some(
-          (c) => item.colony.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(item.colony.toLowerCase())
-        );
-        if (!matchesColony) return false;
-      }
-
-      // Availability Filter ('all', 'available', 'booked')
       const isItemBooked =
         item.available === false ||
         String(item.available).toLowerCase() === 'false' ||
@@ -217,25 +206,30 @@ export default function App() {
         return false;
       }
 
-      // Search Query Filter
-      if (term) {
-        const titleMatch = item.title?.toLowerCase().includes(term);
-        const catMatch = (item.listingCategory || '').toLowerCase().includes(term);
-        const colonyMatch = item.colony?.toLowerCase().includes(term);
-        const houseMatch = item.houseNumber?.toLowerCase().includes(term);
-        const configMatch = item.config?.toLowerCase().includes(term);
-        const phoneMatch = item.contactNumber?.toLowerCase().includes(term) || item.whatsappNumber?.includes(term);
-        const descMatch = item.description?.toLowerCase().includes(term);
-        const landmarkMatch = item.landmark?.toLowerCase().includes(term);
-
-        if (!titleMatch && !catMatch && !colonyMatch && !houseMatch && !configMatch && !phoneMatch && !descMatch && !landmarkMatch) {
-          return false;
-        }
+      if (term && !matchesSearchQuery(item, term)) {
+        return false;
       }
 
       return true;
     });
-  }, [properties, selectedCategory, searchTerm, selectedConfig, selectedColonies, availabilityFilter]);
+  }, [properties, selectedCategory, searchTerm, selectedColonies, availabilityFilter]);
+
+  // Live matching counts for every configuration filter pill
+  const configCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      All: preConfigFilteredProperties.length,
+    };
+    for (const cfg of PROPERTY_CONFIG_OPTIONS) {
+      counts[cfg] = preConfigFilteredProperties.filter((item) => matchesConfigFilter(item, cfg)).length;
+    }
+    return counts;
+  }, [preConfigFilteredProperties]);
+
+  // Filter properties based on category, search query, config, colony, and availability
+  const filteredProperties = useMemo(() => {
+    if (selectedConfig === 'All') return preConfigFilteredProperties;
+    return preConfigFilteredProperties.filter((item) => matchesConfigFilter(item, selectedConfig));
+  }, [preConfigFilteredProperties, selectedConfig]);
 
   // Handler: Save (Add / Edit) property
   const handleSaveProperty = async (data: Omit<Property, 'id'>, id?: string) => {
@@ -253,6 +247,7 @@ export default function App() {
     await addProperty(data);
     showNotification('🎉 बधाई! आपका विज्ञापन नीमच क्लासिफाइड पर सफलतापूर्वक लाइव हो गया है।');
     setSelectedCategory('All');
+    setSelectedConfig('All');
     setAvailabilityFilter('all');
   };
 
@@ -600,6 +595,7 @@ export default function App() {
           onResetFilters={handleResetFilters}
           totalFilteredCount={filteredProperties.length}
           categoryCounts={categoryCounts}
+          configCounts={configCounts}
           availableCount={availableCount}
           bookedCount={bookedCount}
         />

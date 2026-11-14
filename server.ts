@@ -139,7 +139,7 @@ STRICT ZERO-HALLUCINATION EXTRACTION RULES:
 - "rent": ONLY provide a number if the rent/budget/price is EXPLICITLY written (e.g. "किराया 6000" -> 6000, "बजट 28 से 30 लाख" -> 2800000). If NOT written, return 0. NEVER invent a price.
 - "priceDisplay": If a range or lakh/crore figure is written (e.g. "28 से 30 लाख" or "28/30 लाख"), return "₹28-30 लाख". Otherwise "".
 - "priceType": Use "बजट" for buyer budget ("मकान खरीदना है" or when "बजट" is written), "बिक्री मूल्य" ONLY for sellers ("मकान बेचना है"), "गिरवी राशि" for girvi, and "प्रति माह" for rent.
-- "houseNumber": Extract house/shop/plot number if written. For buyer ads ("मकान खरीदना है"), return "खरीदार (वांछित)". If not visible, return "".
+- "houseNumber": Extract house/shop/plot number if written. For buyer ads ("मकान खरीदना है"), return "खरीदार हेतु". If not visible, return "".
 - "colony": Detect Neemuch colony/area (e.g. Vikas Nagar, Shakti Nagar, Gokul Dham, Bhagwanpura, Tagore Nagar, Baghana, etc.). If none mentioned, return "नीमच शहर".
 - "contactNumber": Extract any 10-digit Indian phone number written on the board. If not visible, return "+91-7999646575".
 - "config": Detect ONLY what is actually written from: "एक कमरा", "एक कमरा किचन", "एक हॉल", "एक हॉल अटैच किचन", "2 कमरे किचन", "3 कमरे किचन", "4 कमरे किचन", "1BHK", "2BHK", "3BHK", "4BHK", "5BHK", "2 मंजिला मकान", "3 मंजिला मकान", "ग्राउंड फ्लोर", "1st फ्लोर", "2nd फ्लोर", "3rd फ्लोर", "ऑफिस स्पेस", "दुकान ग्राउंड फ्लोर", "दुकान 1st फ्लोर", "बड़ा हॉल दुकान के लिए", "गोडाउन", "मल्टी फ्लोर गोडाउन", "मल्टी मे फ्लेट", "टावर मे फ्लेट", "दुकान (Shop)", "कमर्शियल स्पेस", OR explicit sqft like "1200-1400 sqft". CRITICAL: NEVER guess or insert "2BHK" if 2BHK is NOT written! Do NOT mark "एक हॉल अटैच किचन" or "2 मंजिला मकान" or "1200 sqft" as 2BHK. If no room/BHK/size is mentioned, return "विवरण अनुसार".
@@ -212,7 +212,7 @@ Return ONLY valid JSON matching this schema:
           const colonyName = parsed.colony || 'नीमच शहर';
           const houseNum =
             parsed.houseNumber?.trim() ||
-            (category === 'मकान खरीदना है' ? 'खरीदार (वांछित)' : category === 'दुकान' ? 'दुकान' : 'H.N.');
+            (category === 'मकान खरीदना है' ? 'खरीदार हेतु' : category === 'दुकान' ? 'दुकान' : 'H.N.');
           const configVal = parsed.config || (category === 'दुकान' ? 'दुकान (Shop)' : 'विवरण अनुसार');
 
           const propertyData = {
