@@ -174,7 +174,11 @@ export function subscribeToProperties(
     (error) => {
       console.error('Subscription error:', error);
       if (onError) onError(error);
-      handleFirestoreError(error, OperationType.GET, COLLECTION_NAME);
+      try {
+        handleFirestoreError(error, OperationType.GET, COLLECTION_NAME);
+      } catch (loggedErr) {
+        console.warn('Handled Firestore subscription error cleanly:', loggedErr);
+      }
     }
   );
 }

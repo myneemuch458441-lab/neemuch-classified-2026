@@ -411,6 +411,25 @@ Only output the formatted Hindi text directly so that the admin can click copy a
   }
 });
 
+// Download standalone single-file index.html for GitHub Pages
+app.get('/api/download-standalone-html', async (_req, res) => {
+  try {
+    const fs = await import('fs');
+    const standalonePath = path.resolve(__dirname, 'github-pages', 'index.html');
+    if (!fs.existsSync(standalonePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Standalone index.html not built yet. Run npm run build:singlefile.',
+      });
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="index.html"');
+    return res.sendFile(standalonePath);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'Download error' });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

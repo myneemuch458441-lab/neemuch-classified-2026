@@ -147,6 +147,13 @@ export const AdminOcrModal: React.FC<AdminOcrModalProps> = ({
         })
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(
+          'फोटो से टेक्स्ट (OCR) फ़ीचर के लिए बैकएंड सर्वर आवश्यक है। स्टैटिक GitHub Pages पर कृपया "कॉपी-पेस्ट विज्ञापन" का उपयोग करें।'
+        );
+      }
+
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'टेक्स्ट निकालने में असमर्थ। कृपया पुनः प्रयास करें।');

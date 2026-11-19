@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Database,
   IndianRupee,
-  ShieldAlert
+  ShieldAlert,
+  Download
 } from 'lucide-react';
 
 interface AdminMasterResetModalProps {
@@ -39,6 +40,37 @@ export const AdminMasterResetModal: React.FC<AdminMasterResetModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [downloadError, setDownloadError] = useState('');
+
+  const isStaticHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:');
+
+  const handleDownloadStandaloneHtml = async () => {
+    setDownloadError('');
+    try {
+      const response = await fetch('/api/download-standalone-html');
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('application/json')) {
+        throw new Error('फाइल तैयार नहीं है। कृपया थोड़ी देर में पुनः प्रयास करें।');
+      }
+      const htmlText = await response.text();
+      if (!htmlText.includes('<div id="root">')) {
+        throw new Error('अमान्य HTML प्रारूप प्राप्त हुआ।');
+      }
+      const blob = new Blob([htmlText], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'index.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setDownloadError(err?.message || 'डाउनलोड करने में त्रुटि आई।');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -272,6 +304,27 @@ export const AdminMasterResetModal: React.FC<AdminMasterResetModalProps> = ({
               )}
             </button>
           </div>
+
+          {!isStaticHost && (
+            <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="text-[11px] text-slate-400 leading-snug">
+                <span className="font-bold text-emerald-300 block">GitHub Pages सिंगल-फाइल एक्सपोर्ट</span>
+                <span>बिना Vite/बिल्ड सेटअप के सीधे अपलोड हेतु स्टैंडअलोन index.html डाउनलोड करें।</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadStandaloneHtml}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold shrink-0 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>index.html डाउनलोड</span>
+              </button>
+            </div>
+          )}
+
+          {downloadError && (
+            <p className="text-[11px] text-rose-400">{downloadError}</p>
+          )}
         </form>
       </div>
     </div>
